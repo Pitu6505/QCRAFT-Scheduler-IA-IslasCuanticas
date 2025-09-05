@@ -95,7 +95,7 @@ async def main():
         "url": "",
         "shots": 10000,
         "provider": ['ibm'],
-        "policy": "Optimizacion_ML"
+        "policy": "Islas_Cuanticas"
     }
     async with aiohttp.ClientSession() as session:
         tasks = []

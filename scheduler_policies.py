@@ -116,8 +116,9 @@ class SchedulerPolicies:
                         'shots_depth': Policy(self.send_shots_depth, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'shots_optimized': Policy(self.send_shots_optimized, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'Optimizacion_ML': Policy(self.send_ML, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'Optimizacion_PD': Policy(self.send_PD, self.max_qubits, self.time_limit_seconds , self.executeCircuit, self.machine_aws, self.machine_ibm),}
-        
+                        'Optimizacion_PD': Policy(self.send_PD, self.max_qubits, self.time_limit_seconds , self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        'Islas_Cuanticas': Policy(self.send_graph_placement, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),}
+
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.unscheduler = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/unscheduler"
         self.app.route('/service/<service_name>', methods=['POST'])(self.service)
@@ -375,7 +376,81 @@ class SchedulerPolicies:
             self.services['shots_optimized'].timers[provider].reset()
 
 
+    def send_graph_placement(self, queue, max_qubits, provider, executeCircuit, machine):
+            """
+            Nueva política: asigna circuitos a qubits físicos usando el grafo de la máquina, minimizando ruido y cumpliendo distancia mínima.
+            """
+            import networkx as nx
+            from ibm_api import get_backend_graph
+            from graph_utils import build_graph
+            from circuit_queue import CircuitQueue
+            from utiles.metrics import calcular_ruido_total, estimar_swap_noise
+            from utiles.debug import mostrar_grafo, mostrar_propiedades, mostrar_asignaciones, mostrar_correspondencia_logico_fisico
+            import config
 
+            # 1. Obtener grafo físico y propiedades
+            coupling_map, qubit_props, gate_props = get_backend_graph(self.machine_ibm)
+            G = build_graph(coupling_map, qubit_props)
+            mostrar_grafo(coupling_map)
+            mostrar_propiedades(qubit_props)
+
+            # 2. Preparar la cola de circuitos
+            circuit_queue = CircuitQueue()
+            for item in queue:
+                # item: (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
+                circuit_id = item[4]
+                required_qubits = item[1]
+                # Si tienes info de edges lógicos, añádela aquí
+                circuit_queue.add_circuit(circuit_id, required_qubits)
+
+            queue_data = circuit_queue.get_queue()
+
+            # 3. Algoritmo de asignación (heurística simple: elegir qubits menos ruidosos y distantes)
+            placements = []
+            used_qubits = set()
+            distancia_minima = getattr(config, 'MIN_CIRCUIT_DISTANCE', 2)
+            ruido_maximo = getattr(config, 'RUIDO_MMAX_NOISE_THRESHOLDAXIMO')
+            # Excluir qubits con mayor temperatura (mayor ruido)
+            sorted_qubits = sorted(G.nodes(data=True), key=lambda x: x[1]['noise'])
+
+            for circuit in queue_data:
+                size = circuit['size']
+                # Buscar subconjunto de qubits conectados, con ruido bajo y distancia mínima
+                # Heurística: tomar los size qubits menos ruidosos y que estén conectados entre sí
+                for i in range(len(sorted_qubits) - size + 1):
+                    candidate = [q[0] for q in sorted_qubits[i:i+size]]
+                    subgraph = G.subgraph(candidate)
+                    if nx.is_connected(subgraph):
+                        # Verificar distancia mínima entre qubits
+                        distancias = [nx.shortest_path_length(G, source=a, target=b) for a in candidate for b in candidate if a != b]
+                        if all(d >= distancia_minima for d in distancias):
+                            # Verificar ruido total
+                            ruido_total = sum(G.nodes[q]['noise'] for q in candidate)
+                            if ruido_total <= ruido_maximo:
+                                # Asignar y marcar como usados
+                                if not used_qubits.intersection(candidate):
+                                    placements.append((circuit['id'], candidate))
+                                    used_qubits.update(candidate)
+                                    break
+
+            mostrar_asignaciones(placements, len(queue_data))
+            mostrar_correspondencia_logico_fisico(placements)
+            print(f"Ruido total de la asignación: {calcular_ruido_total(G, placements):.5f}")
+
+            # 4. Ejecutar los circuitos asignados (ejemplo: solo imprime, aquí deberías llamar a executeCircuit)
+            # for item in queue:
+            #     ...
+            #     executeCircuit(...)
+            #
+            # Si quieres enviar la asignación a otro endpoint, hazlo aquí
+
+            # 5. Reiniciar el timer si quedan elementos en la cola
+            if not queue:
+                self.services['graph_placement'].timers[provider].stop()
+            else:
+                self.services['graph_placement'].timers[provider].reset()
+
+        
 
     def send_ML(self, queue: list, max_qubits: int, provider: str, executeCircuit: Callable, machine: str) -> None:
         """
