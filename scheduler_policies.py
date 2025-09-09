@@ -26,8 +26,6 @@ import networkx as nx
 from ibm_api import get_backend_graph
 from graph_utils import build_graph
 from circuit_queue import CircuitQueue
-from utiles.metrics import calcular_ruido_total, estimar_swap_noise
-from utiles.debug import mostrar_grafo, mostrar_propiedades, mostrar_asignaciones, mostrar_correspondencia_logico_fisico
 import config
 from IslaCuantica import Cola_Formateada
 
