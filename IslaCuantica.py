@@ -16,7 +16,7 @@ def Cola_Formateada(queue: CircuitQueue):
     """
     Recibe una cola de circuitos y devuelve:
     - La cola formateada (circuitos seleccionados para ejecutar)
-    - El layout de qubits físicos asignados (lista de números)
+    - El layout global de qubits físicos asignados (lista plana de enteros)
     """
     # Paso 1: Obtener grafo y propiedades del backend
     coupling_map, qubit_props, gate_props = get_backend_graph()
@@ -27,17 +27,27 @@ def Cola_Formateada(queue: CircuitQueue):
 
     # Paso 3: Filtrar la cola formateada (solo los circuitos asignados)
     cola_formateada = []
-    layout_fisico = []
+    layout_global = []
 
     for idx, placement in enumerate(placements):
         if placement is not None:
+            # queue.get_queue()[idx] es el dict del circuito (p.e. {'id':..., 'size':...})
             cola_formateada.append(queue.get_queue()[idx])
-            layout_fisico.append(placement[1])  # Solo el qubit físico
 
-    # Opcional: Eliminar duplicados en layout
-    layout_fisico = list(set(tuple(q) if isinstance(q, list) else q for q in layout_fisico))
+            # placement[1] se supone que es la lista/tupla de qubits físicos asignados a este circuito
+            assigned = placement[1]
 
-    return cola_formateada, layout_fisico
+            # Normalizar assigned a lista y concatenar (manteniendo orden)
+            if isinstance(assigned, (list, tuple)):
+                layout_global.extend(list(assigned))
+            else:
+                layout_global.append(assigned)
+
+    # NO eliminar duplicados — queremos el layout plano y en orden lógico
+    # (Si hay duplicados en layout_global eso significa que el algoritmo asignó mal
+    # o que hubo solapamiento, y debe detectarse más arriba.)
+
+    return cola_formateada, layout_global
 
 
 
