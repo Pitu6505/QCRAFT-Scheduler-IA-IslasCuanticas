@@ -32,8 +32,8 @@ def build_graph(coupling_map, properties):
         G.add_edge(qubit1, qubit2)
 
     # Mostrar información del grafo
-    print(f"\n🔗 Grafo construido con {G.number_of_nodes()} nodos y {G.number_of_edges()} aristas."
-          f" Ruido promedio: {sum(nx.get_node_attributes(G, 'noise').values()) / G.number_of_nodes():.4f}")
+    # print(f"\n🔗 Grafo construido con {G.number_of_nodes()} nodos y {G.number_of_edges()} aristas."
+    #       f" Ruido promedio: {sum(nx.get_node_attributes(G, 'noise').values()) / G.number_of_nodes():.4f}")
     
     # mostrar el grafo
     # import matplotlib.pyplot as plt
@@ -43,10 +43,10 @@ def build_graph(coupling_map, properties):
     # nx.draw(G, pos, labels=node_labels, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10)
     # plt.title("Grafo de Qubits y Conexiones (ID y Ruido como etiqueta)")
     # plt.show()
-    # Mostrar el peso de cada nodo
-    print("\n📊 Ruido de cada qubit:")
-    for node, data in G.nodes(data=True):
-        print(f"Qubit {node}: Ruido={data['noise']:.4f}")
+    # # Mostrar el peso de cada nodo
+    # print("\n📊 Ruido de cada qubit:")
+    # for node, data in G.nodes(data=True):
+    #     print(f"Qubit {node}: Ruido={data['noise']:.4f}")
     
 
     return G

@@ -32,50 +32,14 @@ def Cola_Formateada(queue: CircuitQueue):
     for idx, placement in enumerate(placements):
         if placement is not None:
             cola_formateada.append(queue.get_queue()[idx])
-            # Suponiendo que placement es un dict {logical_qubit: physical_qubit}
-            layout_fisico.extend(list(placement.values()))
+            layout_fisico.append(placement[1])  # Solo el qubit físico
 
     # Opcional: Eliminar duplicados en layout
     layout_fisico = list(set(layout_fisico))
 
     return cola_formateada, layout_fisico
-    
 
 
-
-# ✅ Paso 1: Obtener grafo desde IBM
-coupling_map, qubit_props, gate_props = get_backend_graph()
-#mostrar_grafo(coupling_map)
-#mostrar_propiedades(qubit_props)
-
-G = build_graph(coupling_map, qubit_props)
-
-# Paso 2: Crear y llenar la cola de circuitos
-queue = CircuitQueue()
-
-
-# Paso 3: Ejecutar el algoritmo de asignación
-placements, errores = place_circuits(G, queue.get_queue())
-
-# Paso 4: Mostrar resultados
-mostrar_asignaciones(placements, len(queue.get_queue()))
-mostrar_correspondencia_logico_fisico(placements)
-
-
-ruido_total = calcular_ruido_total(G, placements)
-print(f"\n🔊 Ruido total acumulado de qubits usados: {ruido_total:.5f}")
-
-
-ruido_puertas = calcular_ruido_swaps_con_logica(G, placements, queue.get_queue(), gate_props)
-print(f"\n🔊 Ruido estimado por SWAPs: {ruido_puertas:.5f}")
-
-ruido_total += ruido_puertas
-print(f"\n🔊 Ruido total acumulado (qubits + SWAPs): {ruido_total:.5f}")
-
-if errores:
-    print("\n🚫 Circuitos no asignados y motivos:")
-    for err in errores:
-        print(err)
 
 
 

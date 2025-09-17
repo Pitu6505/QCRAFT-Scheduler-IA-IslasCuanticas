@@ -1,7 +1,7 @@
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-API_KEY = "yhRRwO2NxmhyTE7lyMxCJtCS6NRcuWTOFOwoGlZsyEU0"
-INSTANCE_CRN = "crn:v1:bluemix:public:quantum-computing:us-east:a/37297326da5a450689b06b550cc955db:28638ea8-9632-4e4f-988f-143097488ae3::"
+API_KEY = "ps93hObrV9a1OpKzKEAdyxlbsQF_jA-uPAzB1isr_lH-"
+INSTANCE_CRN = "crn:v1:bluemix:public:quantum-computing:us-east:a/350b4d725caf401ca6c42d2beddead9a:4105e9d7-2463-4330-983e-bcfd53eea99d::"
 
 def get_backend_graph(backend_name="ibm_brisbane"):
     service = QiskitRuntimeService(

@@ -402,9 +402,16 @@ class SchedulerPolicies:
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
             
-            # Formateo de la cola en formato CircuitQueue
-            formatted_queue = [CircuitQueue(str(user), num_qubits, shots, circuit_name, maxDepth, iteracion) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue]
-            print(f"📌 Cola formateada: {formatted_queue}")
+            # Formateo de la cola usando CircuitQueue correctamente
+            formatted_queue = CircuitQueue()
+            for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
+                # Puedes ajustar los campos según lo que necesites en add_circuit
+                formatted_queue.add_circuit(
+                    circuit_id=str(user),
+                    required_qubits=num_qubits,
+                    edges=None # Si tienes información de edges, pásala aquí
+                )
+            print(f"📌 Cola formateada: {formatted_queue.get_queue()}")
 
             # Llamada al método Cola_Formateada de IslaCuantica.py
             cola_procesada, layout_fisico = Cola_Formateada(formatted_queue)
@@ -440,13 +447,14 @@ class SchedulerPolicies:
 
             # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
             # Ejecución con layout físico
+            """
             if urls_for_create:
                 code, qb = [], []
                 shotsUsr = [item[2] for item in urls_for_create]
                 self.create_circuit(urls_for_create, code, qb, provider)
                 data = {"code": code}
                 # Pasar layout_fisico como argumento extra
-                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
+                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()"""
 
 
             end_time = time.process_time()  # Finalizar el timer
