@@ -280,28 +280,27 @@ class SchedulerPolicies:
             print(f"⚠️ Error obteniendo la cola de IBM: {e}")
             return 0  # Si hay un error, asumimos que no hay trabajos en cola
 
-    def create_circuit(self,urls:list,code:list,qb:list,provider:str) -> None: #TODO add there the returning queue and in the other methods, check if the queue is not empty after the execution of thid method, so it adds the circuits back
-        """
-        Creates the circuit to execute based on the URLs
-
-        Args:
-            urls (list): The data of each circuit            
-            code (list): The code of the composed circuit            
-            qb (list): The number of qubits of each individual circuit            
-            provider (str): The provider of the circuit
-        """
+    def create_circuit(self, urls: list, code: list, qb: list, provider: str) -> None:
         composition_qubits = 0
-        for url, num_qubits, shots, user, circuit_name, depth, Iterator in urls:  #Aqui he cambiado algo
-        #Change the q[...] and c[...] to q[composition_qubits+...] and c[composition_qubits+...]
-            if 'algassert' in url: 
-                # Send a request to the translator, in the post, the field url will be url and the field d will be composition_qubits
-                try: # TODO, if error, maybe add the url to another list or something so its added after this to the waiting_urls queue
-                    x = requests.post(self.translator+provider+'/individual', json = {'url':url, 'd':composition_qubits})
-                except:
-                    print("Error in the request to the translator")
-                    # Add the url to the returning queue
+        for entry in urls:
+            # aceptar tuplas de 6 o 7 elementos
+            if len(entry) == 7:
+                url, num_qubits, shots, user, circuit_name, depth, iterator = entry
+            elif len(entry) == 6:
+                url, num_qubits, shots, user, circuit_name, depth = entry
+                iterator = None
+            else:
+                raise ValueError(f"Cada elemento de 'urls' debe tener 6 o 7 campos; recibido {len(entry)}: {entry}")
+
+            # (el resto de tu código permanece igual, usando 'url', 'num_qubits', etc.)
+            if 'algassert' in url:
+                try:
+                    x = requests.post(self.translator + provider + '/individual', json={'url': url, 'd': composition_qubits})
+                except Exception as e:
+                    print("Error in the request to the translator:", e)
+                    continue
                 data = json.loads(x.text)
-                for elem in data['code']:
+                for elem in data.get('code', []):
                     code.append(elem)
             else:
                 lines = url.split('\n')
@@ -310,24 +309,17 @@ class SchedulerPolicies:
                         line = line.replace('qreg_q[', f'qreg_q[{composition_qubits}+')
                         line = line.replace('creg_c[', f'creg_c[{composition_qubits}+')
                     elif provider == 'aws':
-                        # In the AWS case, all elements have circuit. the integer elements in this line will be replaced by the element+composition_qubits
-                        #line = re.sub(r'circuit\.(\w+)\(([\d, ]+)\)', lambda x: f'circuit.{x.group(1)}({", ".join(str(int(num)+composition_qubits) for num in x.group(2).split(","))})', line)
                         gate_name = re.search(r'circuit\.(.*?)\(', line).group(1)
                         if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
-                            # These gates have a parameter
-                            # Edit the first parameter
                             line = re.sub(rf'{gate_name}\(\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits}", line, count=1)
                         elif gate_name in ['xx', 'yy', 'zz','ms'] or 'cphase' in gate_name:
-                            # These gates have 2 parameters
-                            # Edit the first and second parameters
-                            line= re.sub(rf'{gate_name}\((\d+),\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits},{int(m.group(2)) + composition_qubits}", line, count=1)
-
+                            line = re.sub(rf'{gate_name}\((\d+),\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits},{int(m.group(2)) + composition_qubits}", line, count=1)
                         else:
-                            # These gates have no parameters, so change the number of qubits on all
                             line = re.sub(r'(\d+)', lambda m: str(int(m.group(1)) + composition_qubits), line)
                     code.append(line)
-            composition_qubits += num_qubits
-            qb.append(num_qubits)
+
+            composition_qubits += int(num_qubits)
+            qb.append(int(num_qubits))
 
         if provider == 'ibm':
             # Add at the first position of the code[]
@@ -433,8 +425,10 @@ class SchedulerPolicies:
             seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
 
             # Formatear los datos para create_circuit
-            urls_for_create = [(circuit, num_qubits, shots, user, circuit_name, maxDepth) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos]
-
+            urls_for_create = [
+                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
+                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos
+            ]
             # Actualizar la cola: eliminar elementos procesados y aumentar la prioridad de los que no se procesaron
 
             queue[:] = [

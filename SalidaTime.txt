@@ -24,3 +24,15 @@ Suma de qBits:116
 Tiempo Ejecucion:0.0
 Suma de qBits:83
 Tiempo Ejecucion:0.0
+Suma de qBits:123
+Tiempo Ejecucion:0.0
+Suma de qBits:23
+Tiempo Ejecucion:0.03125
+Suma de qBits:118
+Tiempo Ejecucion:0.171875
+Suma de qBits:116
+Tiempo Ejecucion:0.046875
+Suma de qBits:124
+Tiempo Ejecucion:0.0625
+Suma de qBits:75
+Tiempo Ejecucion:0.0
