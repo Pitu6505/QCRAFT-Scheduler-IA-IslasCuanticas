@@ -1,4 +1,5 @@
 import json
+import queue
 import requests
 from flask import request
 import re
@@ -105,6 +106,9 @@ class SchedulerPolicies:
         # Cargar modelo de ML si existe, sino entrenarlo
         self.model = SeleccionadorNN(input_dim=2, hidden_dim=16)
 
+        # Lock para evitar concurrencia en Islas Cuánticas
+        self.islas_cuanticas_lock = threading.Lock()
+
         if os.path.exists(MODEL_PATH):
             print("Cargando modelo entrenado...")
             self.model.load_state_dict(torch.load(MODEL_PATH))
@@ -114,7 +118,6 @@ class SchedulerPolicies:
             dataset = ColaDataset(num_samples=1000, max_items=20, capacidad=self.max_qubits, forced_threshold=self.forced_threshold)
             self.model = train_model(self.model, dataset, num_epochs=30, batch_size=32, learning_rate=0.001)
             torch.save(self.model.state_dict(), MODEL_PATH)
-
 
         self.services = {'time': Policy(self.send, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'shots': Policy(self.send_shots, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
@@ -390,10 +393,11 @@ class SchedulerPolicies:
 
 
     def send_graph_placement(self, queue, max_qubits, provider, executeCircuit, machine):
-            """
-            Nueva política: asigna circuitos a qubits físicos usando el grafo de la máquina, minimizando ruido y cumpliendo distancia mínima.
-            """
- 
+        """
+        Nueva política: asigna circuitos a qubits físicos usando el grafo de la máquina, minimizando ruido y cumpliendo distancia mínima.
+        """
+        # Solo un hilo puede ejecutar esta política a la vez
+        with self.islas_cuanticas_lock:
             print("Ejecutando política de Islas Cuánticas...")
             start_time = time.process_time()
 
@@ -401,15 +405,13 @@ class SchedulerPolicies:
                 print("⚠️ La cola está vacía, deteniendo temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
-            
             # Formateo de la cola usando CircuitQueue correctamente
             formatted_queue = CircuitQueue()
             for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
-                # Puedes ajustar los campos según lo que necesites en add_circuit
                 formatted_queue.add_circuit(
                     circuit_id=str(user),
                     required_qubits=num_qubits,
-                    edges=None # Si tienes información de edges, pásala aquí
+                    edges=None
                 )
             print(f"📌 Cola formateada: {formatted_queue.get_queue()}")
 
@@ -423,9 +425,9 @@ class SchedulerPolicies:
                 print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
-            
+
             # Obtener los IDs seleccionados
-            seleccionados_ids = {str(s.user) for s in cola_procesada}
+            seleccionados_ids = {str(s['id']) for s in cola_procesada}
 
             # Filtrar los circuitos completos correspondientes a los IDs seleccionados
             seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
@@ -434,28 +436,27 @@ class SchedulerPolicies:
             urls_for_create = [(circuit, num_qubits, shots, user, circuit_name, maxDepth) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos]
 
             # Actualizar la cola: eliminar elementos procesados y aumentar la prioridad de los que no se procesaron
+
             queue[:] = [
                 (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion + 1)
                 for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue
-                    if str(user) not in seleccionados_ids
-            ]
-
+                    if str(user) not in seleccionados_ids  # aquí también
+]
             # **Verificar si los elementos realmente se eliminaron**
             elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
             if elementos_restantes:
-                print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")   
+                print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
             # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
             # Ejecución con layout físico
-            """
+            
             if urls_for_create:
                 code, qb = [], []
                 shotsUsr = [item[2] for item in urls_for_create]
                 self.create_circuit(urls_for_create, code, qb, provider)
                 data = {"code": code}
                 # Pasar layout_fisico como argumento extra
-                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()"""
-
+                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
 
             end_time = time.process_time()  # Finalizar el timer
             elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
@@ -533,7 +534,7 @@ class SchedulerPolicies:
             return
 
         # 5. Obtener los IDs seleccionados
-        seleccionados_ids = {str(s[0]) for s in seleccionados}
+        seleccionados_ids = {str(s['user']) for s in seleccionados}
 
         # 6. Filtrar los circuitos completos correspondientes a los IDs seleccionados
         seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
@@ -882,4 +883,3 @@ class SchedulerPolicies:
     
     def get_ibm(self):
         return self.executeCircuitIBM
-    

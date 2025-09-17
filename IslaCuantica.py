@@ -35,7 +35,7 @@ def Cola_Formateada(queue: CircuitQueue):
             layout_fisico.append(placement[1])  # Solo el qubit físico
 
     # Opcional: Eliminar duplicados en layout
-    layout_fisico = list(set(layout_fisico))
+    layout_fisico = list(set(tuple(q) if isinstance(q, list) else q for q in layout_fisico))
 
     return cola_formateada, layout_fisico
 
