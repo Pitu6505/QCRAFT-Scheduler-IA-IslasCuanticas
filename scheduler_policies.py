@@ -412,10 +412,9 @@ class SchedulerPolicies:
 
     def send_graph_placement(self, queue, max_qubits, provider, executeCircuit, machine):
         """
-        Política: asigna circuitos a qubits físicos usando el grafo de la máquina,
-        minimizando ruido, cumpliendo distancia mínima y agrupando varios circuitos
-        para utilizar al máximo la máquina.
+        Nueva política: asigna circuitos a qubits físicos usando el grafo de la máquina, minimizando ruido y cumpliendo distancia mínima.
         """
+        # Solo un hilo puede ejecutar esta política a la vez
         with self.islas_cuanticas_lock:
             print("Ejecutando política de Islas Cuánticas...")
             start_time = time.process_time()
@@ -424,8 +423,17 @@ class SchedulerPolicies:
                 print("⚠️ La cola está vacía, deteniendo temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
+            
+            if provider == 'ibm':
+            # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
+                while self.get_ibm_queue_length() >= 3:
+                    print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
+                    time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
 
-            # Formateo de la cola usando CircuitQueue
+            ibm_queue_length = self.get_ibm_queue_length()
+            ##print(f"✅ La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
+            
+            # Formateo de la cola usando CircuitQueue correctamente
             formatted_queue = CircuitQueue()
             for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
                 formatted_queue.add_circuit(
@@ -435,106 +443,83 @@ class SchedulerPolicies:
                 )
             print(f"📌 Cola formateada: {formatted_queue.get_queue()}")
 
-            # Llamada al método Cola_Formateada (devuelve cola procesada y layout físico plano)
+            # Llamada al método Cola_Formateada de IslaCuantica.py
             cola_procesada, layout_fisico = Cola_Formateada(formatted_queue)
             print(f"✅ Cola procesada: {cola_procesada}")
-            print(f"✅ Layout físico asignado (raw): {layout_fisico}")
+            print(f"✅ Layout físico asignado: {layout_fisico}")
 
+            # Si no hay elementos seleccionados, detenemos la ejecución
             if not cola_procesada:
                 print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
 
-            # Construir seleccionados_completos en el mismo orden que cola_procesada
-            id_to_full = {str(item[3]): item for item in queue}
-            seleccionados_completos = []
-            for s in cola_procesada:
-                cid = str(s['id'])
-                if cid in id_to_full:
-                    seleccionados_completos.append(id_to_full[cid])
-                else:
-                    print(f"⚠️ No se encontró el item completo para id {cid} en la cola original")
+            # Obtener los IDs seleccionados
+            seleccionados_ids = {str(s['id']) for s in cola_procesada}
 
+            # Filtrar los circuitos completos correspondientes a los IDs seleccionados
+            seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
+
+            # Formatear los datos para create_circuit
             urls_for_create = [
                 (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
                 for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos
             ]
+            # Actualizar la cola: eliminar elementos procesados y aumentar la prioridad de los que no se procesaron
 
-            # -----------------------------------------------------#
-            # 1️⃣ Flatten layout físico y ajustar por tamaño de cada circuito
-            layout_flat_corrected = []
-            index = 0
-            for c in cola_procesada:
-                size = int(c['size'])
-                slice_qubits = layout_fisico[index:index+size]
-                if len(slice_qubits) < size:
-                    print(f"❌ ERROR: No hay suficientes qubits en el layout para el circuito {c['id']}")
-                    return
-                layout_flat_corrected.extend(slice_qubits)
-                index += size
-
-            total_qubits_needed = sum(int(item[1]) for item in urls_for_create) if urls_for_create else 0
-            if len(layout_flat_corrected) != total_qubits_needed:
-                print(f"❌ ERROR: Layout físico incompleto ({len(layout_flat_corrected)} vs {total_qubits_needed})")
-                with open("./SalidaIslasCuanticas.txt", 'a') as file:
-                    file.write("ERROR Layout mismatch\n")
-                    file.write(f"layout_flat_corrected ({len(layout_flat_corrected)}): {layout_flat_corrected}\n")
-                    file.write(f"urls_for_create ({len(urls_for_create)}): {urls_for_create}\n")
-                self.services['Islas_Cuanticas'].timers[provider].stop()
-                return
-            else:
-                print(f"✅ Layout validado: {len(layout_flat_corrected)} qubits físicos para {total_qubits_needed} qubits lógicos.")
-            # -----------------------------------------------------#
-
-            # Actualizar la cola eliminando los procesados
-            seleccionados_ids = {str(s['id']) for s in cola_procesada}
             queue[:] = [
                 (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion + 1)
                 for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue
-                if str(user) not in seleccionados_ids
-            ]
-
-            # Verificación
+                    if str(user) not in seleccionados_ids  # aquí también
+]
+            # **Verificar si los elementos realmente se eliminaron**
             elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
             if elementos_restantes:
                 print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
-            # -----------------------------------------------------#
-            # Ejecutar los circuitos en un solo hilo con layout corregido
+            # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
+                # Mostrar por pantalla la suma de qubits en todos los circuitos a ejecutar
+            if urls_for_create:
+                total_qbits = sum(item[1] for item in urls_for_create)
+                print(f"Suma total de qubits a ejecutar: {total_qbits}")
+            # Ejecución con layout físico
+            """
             if urls_for_create:
                 code, qb = [], []
                 shotsUsr = [item[2] for item in urls_for_create]
                 self.create_circuit(urls_for_create, code, qb, provider)
                 data = {"code": code}
-                Thread(
-                    target=executeCircuit,
-                    args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_flat_corrected)
-                ).start()
-            # -----------------------------------------------------#
+                # Pasar layout_fisico como argumento extra
+                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()"""
 
-            # Logging
-            end_time = time.process_time()
-            elapsed_time = end_time - start_time
+            end_time = time.process_time()  # Finalizar el timer
+            elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
             print(f"Tiempo de ejecución de send: {elapsed_time:.6f} segundos en Islas Cuánticas")
 
             with open("./SalidaIslasCuanticas.txt", 'a') as file:
-                file.write("Cola Formateada:\n")
+                file.write("Cola Formateada:")
                 file.write(str(formatted_queue))
-                file.write("\nCola Seleccionada:\n")
+                file.write("\n")
+                file.write("Cola Seleccionada:")
                 file.write(str(cola_procesada))
-                file.write("\nLayout Físico:\n")
-                file.write(str(layout_flat_corrected))
-                file.write("\nTiempo Ejecucion:\n")
+                file.write("\n")
+                file.write("Layout Físico:")
+                file.write(str(layout_fisico))  
+                file.write("\n")
+                file.write("Suma total de qubits a ejecutar:")
+                file.write(str(total_qbits))
+                file.write("\n")
+                file.write("Tiempo Ejecucion:")
                 file.write(str(elapsed_time))
                 file.write("\n")
 
-            # Control del temporizador
+            # **10. Verificar si la cola está vacía antes de reiniciar el temporizador**
             if not queue:
                 print("✅ Cola vacía después de ejecución, deteniendo temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
             else:
+                ##print("🔁 La cola no está vacía, reiniciando temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].reset()
-
 
 
 

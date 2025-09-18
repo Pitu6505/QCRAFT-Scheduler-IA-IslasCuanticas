@@ -22,6 +22,10 @@ def Cola_Formateada(queue: CircuitQueue):
     coupling_map, qubit_props, gate_props = get_backend_graph()
     G = build_graph(coupling_map, qubit_props)
 
+    # mostrar cola
+
+    print("mostrar cola", queue)
+
     # Paso 2: Ejecutar el algoritmo de asignación
     placements, errores = place_circuits(G, queue.get_queue())
 
@@ -43,9 +47,12 @@ def Cola_Formateada(queue: CircuitQueue):
             else:
                 layout_global.append(assigned)
 
+    print("localizaciones de la cola", placements)
+    print("cola formateada", cola_formateada)
+
+
+
     # NO eliminar duplicados — queremos el layout plano y en orden lógico
-    # (Si hay duplicados en layout_global eso significa que el algoritmo asignó mal
-    # o que hubo solapamiento, y debe detectarse más arriba.)
 
     return cola_formateada, layout_global
 
