@@ -100,7 +100,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 127
         self.forced_threshold = 12
-        self.machine_ibm =  'ibm_brisbane' #''local'
+        self.machine_ibm = 'ibm_brisbane' #''local'
         self.machine_aws = 'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -424,13 +424,13 @@ class SchedulerPolicies:
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
             
-            if provider == 'ibm':
-            # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
-                while self.get_ibm_queue_length() >= 3:
-                    print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
-                    time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
+            # if provider == 'ibm':
+            # # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
+            #     while self.get_ibm_queue_length() >= 3:
+            #         print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
+            #         time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
 
-            ibm_queue_length = self.get_ibm_queue_length()
+            # ibm_queue_length = self.get_ibm_queue_length()
             ##print(f"✅ La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
             
             # Formateo de la cola usando CircuitQueue correctamente
@@ -483,14 +483,14 @@ class SchedulerPolicies:
                 total_qbits = sum(item[1] for item in urls_for_create)
                 print(f"Suma total de qubits a ejecutar: {total_qbits}")
             # Ejecución con layout físico
-            """
+           
             if urls_for_create:
                 code, qb = [], []
                 shotsUsr = [item[2] for item in urls_for_create]
                 self.create_circuit(urls_for_create, code, qb, provider)
                 data = {"code": code}
                 # Pasar layout_fisico como argumento extra
-                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()"""
+                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
 
             end_time = time.process_time()  # Finalizar el timer
             elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
