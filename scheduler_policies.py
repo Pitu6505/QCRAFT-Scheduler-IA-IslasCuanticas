@@ -18,8 +18,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
+from qiskit import QuantumCircuit
 import threading
 from typing import Callable, Iterator
+from itertools import combinations
 import time
 from qiskit_ibm_runtime import SamplerV2 as Sampler, QiskitRuntimeService
 import qiskit.providers
@@ -29,6 +31,8 @@ from graph_utils import build_graph
 from circuit_queue import CircuitQueue
 import config
 from IslaCuantica import Cola_Formateada
+import ast
+from IslasCuanticas_Edges import Cola_Formateada_edges
 
 MODEL_PATH = "modelo_entrenado.pth"
 METADATA_PATH = "metadata.txt"
@@ -126,7 +130,9 @@ class SchedulerPolicies:
                         'shots_optimized': Policy(self.send_shots_optimized, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'Optimizacion_ML': Policy(self.send_ML, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'Optimizacion_PD': Policy(self.send_PD, self.max_qubits, self.time_limit_seconds , self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'Islas_Cuanticas': Policy(self.send_graph_placement, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),}
+                        'Islas_Cuanticas': Policy(self.send_graph_placement, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        'Islas_Cuanticas_Edges': Policy(self.send_graph_placement_edges, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        }
 
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.unscheduler = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/unscheduler"
@@ -367,6 +373,9 @@ class SchedulerPolicies:
             code.append("return circuit")
 
 
+
+
+
     def send_shots_optimized(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
         """
         Sends the URLs to the server with the minimum number of shots using the shots_optimized policy
@@ -521,9 +530,143 @@ class SchedulerPolicies:
                 ##print("🔁 La cola no está vacía, reiniciando temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].reset()
 
+    def send_graph_placement_edges(self, queue, max_qubits, provider, executeCircuit, machine):
+        """
+        Política que asigna circuitos a qubits físicos usando el grafo + edges de los circuitos.
+        """
+        with self.islas_cuanticas_lock:
+            print("Ejecutando política de Islas Cuánticas (con edges)...")
+            start_time = time.process_time()
 
+            if not queue:
+                print("⚠️ La cola está vacía, deteniendo temporizador.")
+                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                return
 
+            
+            formatted_queue = CircuitQueue()
+            for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
+                print("mostrando circuito:", circuit)
+                edges = self.extract_edges_from_circuit(circuit)  # 🔑 Aquí extraemos las conexiones
+                formatted_queue.add_circuit(
+                    circuit_id=str(user),
+                    required_qubits=num_qubits,
+                    edges=edges
+                )
+            print(f"📌 Cola formateada con edges: {formatted_queue.get_queue()}")
 
+            # Llamada al método que ya tienes implementado
+            cola_procesada, layout_fisico = Cola_Formateada_edges(formatted_queue)
+            print(f"✅ Cola procesada: {cola_procesada}")
+            print(f"✅ Layout físico asignado: {layout_fisico}")
+
+            if not cola_procesada:
+                print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
+                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                return
+
+            seleccionados_ids = {str(s['id']) for s in cola_procesada}
+            seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
+
+            urls_for_create = [
+                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
+                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos
+            ]
+
+            queue[:] = [
+                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion + 1)
+                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue
+                    if str(user) not in seleccionados_ids
+            ]
+
+            if urls_for_create:
+                total_qbits = sum(item[1] for item in urls_for_create)
+                print(f"Suma total de qubits a ejecutar: {total_qbits}")
+                code, qb = [], []
+                shotsUsr = [item[2] for item in urls_for_create]
+                self.create_circuit(urls_for_create, code, qb, provider)
+                data = {"code": code}
+                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
+
+            end_time = time.process_time()
+            elapsed_time = end_time - start_time
+            print(f"Tiempo de ejecución de send_edges: {elapsed_time:.6f} segundos")
+
+            with open("./SalidaIslasCuanticasEdges.txt", 'a') as file:
+                file.write("Cola Formateada con edges:")
+                file.write(str(formatted_queue))
+                file.write("\n")
+                file.write("Cola Seleccionada:")
+                file.write(str(cola_procesada))
+                file.write("\n")
+                file.write("Layout Físico:")
+                file.write(str(layout_fisico))
+                file.write("\n")
+                file.write("Tiempo Ejecucion:")
+                file.write(str(elapsed_time))
+                file.write("\n")
+
+            if not queue:
+                print("✅ Cola vacía después de ejecución, deteniendo temporizador.")
+                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+            else:
+                self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
+
+        
+
+    def extract_edges_from_circuit(self, circuit_code: str):
+        """
+        Extrae las 'edges' (conexiones lógicas entre qubits) de un código Qiskit
+        en formato de texto como los que tienes en la cola:
+          circuit.cx(qreg_q[0], qreg_q[1])
+          circuit.ccx(qreg_q[0], qreg_q[1], qreg_q[2])
+          circuit.swap(qreg_q[3], qreg_q[4])
+        Devuelve una lista de tuplas (q_phys_a, q_phys_b) con q_phys_a < q_phys_b.
+        NO ejecuta el código del circuito.
+        """
+        if not circuit_code:
+            return []
+
+        edges = set()
+        # Recorremos línea a línea
+        for line in circuit_code.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            # Queremos sólo las llamadas tipo 'circuit.<gate>(...)'
+            m = re.match(r'circuit\.(\w+)\s*\((.*)\)\s*', line)
+            if not m:
+                continue
+
+            gate = m.group(1).lower()
+            args = m.group(2)
+
+            # Extraer todas las ocurrencias qreg_q[...]
+            bracket_contents = re.findall(r'qreg_q\[\s*([^\]]+)\s*\]', args)
+            qubits = []
+            for inner in bracket_contents:
+                # Extraemos todos los números dentro del interior del corchete
+                nums = re.findall(r'(\d+)', inner)
+                if not nums:
+                    # Si no hay números, no podemos resolver el índice -> lo ignoramos
+                    # (por ejemplo si aparece 'composition_qubits+X' sin valores numéricos)
+                    continue
+                # Sumamos los números que aparezcan en el interior (maneja '4+2' -> 6)
+                idx = sum(int(n) for n in nums)
+                qubits.append(idx)
+
+            # Si hay >=2 qubits en la instrucción, agregamos las aristas (pares)
+            if len(qubits) >= 2:
+                for a, b in combinations(qubits, 2):
+                    edges.add(tuple(sorted((a, b))))
+
+            # Puertas de 1 qubit no generan edges (medida, h, x, y, z, t, ...)
+            # Si deseas soportar puertas específicas que implican conectividad distinta,
+            # añádelas aquí.
+
+        # devolver como lista ordenada para estabilidad
+        return sorted(edges)
             
             
 
