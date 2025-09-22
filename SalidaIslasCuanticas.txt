@@ -13,3 +13,8 @@ Cola Seleccionada:[{'id': '228518841985403108500695640173957895609', 'size': 2},
 Layout Físico:[41, 53, 99, 100, 101]
 Suma total de qubits a ejecutar:5
 Tiempo Ejecucion:0.203125
+Cola Formateada:<circuit_queue.CircuitQueue object at 0x0000015268CBBE00>
+Cola Seleccionada:[{'id': '60149759862982356369790732768690086546', 'size': 2}, {'id': '113603061572617789684579293600524788746', 'size': 3}]
+Layout Físico:[2, 3, 42, 41, 53]
+Suma total de qubits a ejecutar:5
+Tiempo Ejecucion:0.421875
