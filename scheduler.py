@@ -54,10 +54,10 @@ class Scheduler:
         
         self.max_qubits = 127
         
-       # mongo_uri = f"mongodb://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{self.app.config['DB']}:{self.app.config['DB_PORT']}/"
-       # self.client = MongoClient(mongo_uri)
-       # self.db = self.client[os.getenv('DB_NAME')]
-        #self.collection = self.db[os.getenv('DB_COLLECTION')]
+        mongo_uri = f"mongodb://{self.app.config['DB']}:{self.app.config['DB_PORT']}/{os.getenv('DB_NAME')}"
+        self.client = MongoClient(mongo_uri)
+        self.db = self.client[os.getenv('DB_NAME')]
+        self.collection = self.db[os.getenv('DB_COLLECTION')]
 
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.policy_service = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/service/"
@@ -276,7 +276,7 @@ class Scheduler:
             '_id': str(user),
             'circuit': url
         }
-       # self.collection.insert_one(document)
+        self.collection.insert_one(document)
 
         # Parse the URL and extract the fragment
         try:
@@ -372,12 +372,12 @@ class Scheduler:
 
         user = uuid.uuid4().int
         #user = request.headers.get('X-Forwarded-For', request.remote_addr)
-        #document = {
-        #'_id': str(user),
-        #'circuit': url
-        #}
-        #with self.result_lock:
-            #self.collection.insert_one(document)
+        document = {
+        '_id': str(user),
+        'circuit': url
+        }
+        with self.result_lock:
+            self.collection.insert_one(document)
 
         # URL is a raw GitHub url, get its content
         try:
