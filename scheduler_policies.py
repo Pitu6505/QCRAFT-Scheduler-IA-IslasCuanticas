@@ -546,7 +546,7 @@ class SchedulerPolicies:
             
             formatted_queue = CircuitQueue()
             for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
-                print("mostrando circuito:", circuit)
+                #print("mostrando circuito:", circuit)
                 edges = self.extract_edges_from_circuit(circuit)  # 🔑 Aquí extraemos las conexiones
                 formatted_queue.add_circuit(
                     circuit_id=str(user),

@@ -6,7 +6,7 @@ FORCE_THRESHOLD = 12  # Umbral de iteraciones para forzar la prioridad
 NUM_ENTRENAMIENTO = 30
 
 # Distancia mínima entre circuitos (número de nodos)
-MIN_CIRCUIT_DISTANCE = 3
+MIN_CIRCUIT_DISTANCE = 4
 
 # Umbral máximo aceptable de ruido/temperatura para usar un nodo
 MAX_NOISE_THRESHOLD = 0.05575  #0.02

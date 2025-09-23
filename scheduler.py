@@ -212,8 +212,8 @@ class Scheduler:
                 # Create the update document
                 update = {'$inc': {'value.' + k: v for k, v in value.items()}}
                 # Upsert the document, Quitar esto
-                #with self.result_lock: #In the case provider is both so the data retrieval is done after the first update finishes
-                    #self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
+                with self.result_lock: #In the case provider is both so the data retrieval is done after the first update finishes
+                    self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
 
         return "Results stored successfully", 200  # Return a response
 
@@ -276,7 +276,7 @@ class Scheduler:
             '_id': str(user),
             'circuit': url
         }
-        self.collection.insert_one(document)
+        # self.collection.insert_one(document)
 
         # Parse the URL and extract the fragment
         try:
@@ -376,8 +376,8 @@ class Scheduler:
         '_id': str(user),
         'circuit': url
         }
-        with self.result_lock:
-            self.collection.insert_one(document)
+        # with self.result_lock:
+        #     self.collection.insert_one(document)
 
         # URL is a raw GitHub url, get its content
         try:
