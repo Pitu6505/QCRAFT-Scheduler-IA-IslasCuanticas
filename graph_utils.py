@@ -1,9 +1,9 @@
 import networkx as nx
 
 # Pesos configurables
-ALPHA = 0.20   # peso del error de lectura
-BETA = 0.25    # peso de 1/T1
-GAMMA = 0.40   # peso de 1/T2
+ALPHA = 0.3  # peso del error de lectura
+BETA = 0.35    # peso de 1/T1
+GAMMA = 0.35   # peso de 1/T2
 
 def build_graph(coupling_map, properties):
     G = nx.Graph()
