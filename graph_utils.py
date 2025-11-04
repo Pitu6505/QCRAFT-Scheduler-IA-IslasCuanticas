@@ -23,6 +23,7 @@ def build_graph(coupling_map, properties):
 
             G.add_node(i, noise=noise)
 
+
         except (IndexError, KeyError, ZeroDivisionError):
             # En caso de datos corruptos o incompletos
             G.add_node(i, noise=float('inf'))
@@ -31,11 +32,10 @@ def build_graph(coupling_map, properties):
     for qubit1, qubit2 in coupling_map:
         G.add_edge(qubit1, qubit2)
 
-    # Mostrar información del grafo
+    # # Mostrar información del grafo
     # print(f"\n🔗 Grafo construido con {G.number_of_nodes()} nodos y {G.number_of_edges()} aristas."
     #       f" Ruido promedio: {sum(nx.get_node_attributes(G, 'noise').values()) / G.number_of_nodes():.4f}")
     
-    # mostrar el grafo
     # import matplotlib.pyplot as plt
     # pos = nx.spring_layout(G)
     # # Etiqueta: "QubitID\nRuido"
