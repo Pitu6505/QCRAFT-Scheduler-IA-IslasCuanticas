@@ -93,8 +93,8 @@ async def post_request(session, url, data):
 async def main():
     data_template = {
         "url": "",
-        "shots": 10000,
-        "provider": ['ibm'],
+        "shots": 10,
+        "provider": ['aws'],
         "policy": "Islas_Cuanticas_Edges"
     }
     async with aiohttp.ClientSession() as session:

@@ -1,7 +1,9 @@
 from ibm_api import get_backend_graph
+from aws_api import get_backend_graph_aws
 from graph_utils import build_graph
 from circuit_queue import CircuitQueue
 from placement_algorithm import place_circuits
+import config
 from utiles.debug import (
     mostrar_grafo,
     mostrar_propiedades,
@@ -12,16 +14,31 @@ from utiles.debug import (
 from utiles.metrics import estimar_swap_noise, calcular_ruido_swaps_con_logica
 
 
-def Cola_Formateada(queue: CircuitQueue):
+def Cola_Formateada(queue: CircuitQueue, provider: str):
     """
     Recibe una cola de circuitos y devuelve:
     - La cola formateada (solo los circuitos que realmente han sido asignados)
     - El layout global de qubits físicos asignados (lista plana de enteros)
     """
 
-    # Paso 1: Obtener grafo y propiedades del backend
-    coupling_map, qubit_props, gate_props = get_backend_graph()
-    G = build_graph(coupling_map, qubit_props)
+    # Paso 1: Obtener grafo y propiedades del backend según el proveedor
+    if provider == 'aws':
+        coupling_map, qubit_props, gate_props = get_backend_graph_aws()
+    else: # Por defecto o si es 'ibm', usa IBM
+        coupling_map, qubit_props, gate_props = get_backend_graph()
+
+    if coupling_map is None:
+        print(f"Error: No se pudieron obtener los datos del backend para {provider}. Terminando.")
+        return [], []
+        
+    G = build_graph(
+        coupling_map, 
+        qubit_props,
+        partition_mode=config.USE_PARTITION,
+        partition_index=config.PARTITION_INDEX,
+        partitions=config.PARTITIONS,
+        partition_ranges=config.PARTITION_RANGES
+    )
 
     # Debug inicial
     print("\n🔎 [DEBUG] Cola original recibida:")

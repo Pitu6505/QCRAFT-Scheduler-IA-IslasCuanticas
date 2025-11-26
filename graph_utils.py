@@ -1,52 +1,67 @@
 import networkx as nx
+import math
 
 # Pesos configurables
 ALPHA = 0.3  # peso del error de lectura
 BETA = 0.35    # peso de 1/T1
 GAMMA = 0.35   # peso de 1/T2
 
-def build_graph(coupling_map, properties):
+def build_graph(coupling_map, properties, partition_mode=False, partition_index=1, partitions=4, partition_ranges=None):
+    """
+    Construye el grafo de qubits.
+    - partition_mode: activar particionado (bool).
+    - partition_index: índice 1-based de la partición a usar.
+    - partitions: número de particiones si se usa particionado uniforme.
+    - partition_ranges: lista opcional de tuplas (start, end) inclusive, longitud == partitions.
+      Si se proporciona, se usa esta lista en vez de dividir uniformemente.
+    """
     G = nx.Graph()
 
-    for i, qubit_props in enumerate(properties['qubits']):
-        try:
-            t1 = qubit_props[0]['value']  # Tiempo de relajación
-            t2 = qubit_props[1]['value']  # Tiempo de decoherencia
-            readout_error = qubit_props[5]['value']  # Error de lectura
+    total_qubits = len(properties.get('qubits', []))
 
-            # Calcular ruido efectivo
+    # Determinar el conjunto de nodos a incluir
+    if partition_mode:
+        if partition_ranges is not None:
+            if not isinstance(partition_ranges, (list, tuple)):
+                raise ValueError("partition_ranges debe ser lista/tuple de tuplas (start, end)")
+            if partition_index < 1 or partition_index > len(partition_ranges):
+                raise ValueError("partition_index fuera de rango para partition_ranges")
+            start, end_inclusive = partition_ranges[partition_index - 1]
+            if start < 0 or end_inclusive >= total_qubits or start > end_inclusive:
+                raise ValueError("Rango de partición inválido")
+            node_set = set(range(start, end_inclusive + 1))
+        else:
+            if partitions <= 0:
+                raise ValueError("partitions debe ser > 0")
+            if partition_index < 1 or partition_index > partitions:
+                raise ValueError(f"partition_index debe estar en 1..{partitions}")
+            part_size = math.ceil(total_qubits / partitions)
+            start = (partition_index - 1) * part_size
+            end = min(start + part_size, total_qubits)  # end no inclusivo
+            node_set = set(range(start, end))
+    else:
+        node_set = set(range(total_qubits))
+
+    # Añadir nodos con ruido (solo los de node_set)
+    for i, qubit_props in enumerate(properties.get('qubits', [])):
+        if i not in node_set:
+            continue
+        try:
+            t1 = qubit_props[0]['value']
+            t2 = qubit_props[1]['value']
+            readout_error = qubit_props[5]['value']
             noise = (
                 ALPHA * readout_error +
                 BETA * (1 / t1 if t1 > 0 else float('inf')) +
                 GAMMA * (1 / t2 if t2 > 0 else float('inf'))
             )
-
             G.add_node(i, noise=noise)
-
-
-        except (IndexError, KeyError, ZeroDivisionError):
-            # En caso de datos corruptos o incompletos
+        except (IndexError, KeyError, TypeError, ZeroDivisionError):
             G.add_node(i, noise=float('inf'))
 
-    # Añadir aristas del coupling map
-    for qubit1, qubit2 in coupling_map:
-        G.add_edge(qubit1, qubit2)
-
-    # # Mostrar información del grafo
-    # print(f"\n🔗 Grafo construido con {G.number_of_nodes()} nodos y {G.number_of_edges()} aristas."
-    #       f" Ruido promedio: {sum(nx.get_node_attributes(G, 'noise').values()) / G.number_of_nodes():.4f}")
+    # Añadir aristas solo si ambos extremos están en la partición
+    for q1, q2 in coupling_map:
+        if q1 in node_set and q2 in node_set:
+            G.add_edge(q1, q2)
     
-    # import matplotlib.pyplot as plt
-    # pos = nx.spring_layout(G)
-    # # Etiqueta: "QubitID\nRuido"
-    # node_labels = {node: f"{node}\n{data['noise']:.5f}" for node, data in G.nodes(data=True)}
-    # nx.draw(G, pos, labels=node_labels, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10)
-    # plt.title("Grafo de Qubits y Conexiones (ID y Ruido como etiqueta)")
-    # plt.show()
-    # # Mostrar el peso de cada nodo
-    # print("\n📊 Ruido de cada qubit:")
-    # for node, data in G.nodes(data=True):
-    #     print(f"Qubit {node}: Ruido={data['noise']:.4f}")
-    
-
     return G
