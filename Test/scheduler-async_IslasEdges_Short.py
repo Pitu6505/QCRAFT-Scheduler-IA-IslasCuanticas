@@ -94,7 +94,7 @@ async def main():
     data_template = {
         "url": "",
         "shots": 10,
-        "provider": ['aws'],
+        "provider": ['ibm'],
         "policy": "Islas_Cuanticas_Edges"
     }
     async with aiohttp.ClientSession() as session:

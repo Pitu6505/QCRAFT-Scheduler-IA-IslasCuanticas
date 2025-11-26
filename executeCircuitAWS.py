@@ -152,7 +152,7 @@ def runAWS(machine:str, circuit:Circuit, shots:int, s3_folder: Optional[str] = N
         return counts
     
 
-def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_number:list, circuit_names:list, s3_folder: Optional[str] = None) -> dict:
+def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_number:list, circuit_names:list, layout_fisico=None, s3_folder: Optional[str] = None) -> dict:
     """
     Executes a circuit in the AWS cloud and saves the task id if the machine crashes.
 
@@ -162,7 +162,8 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
         shots (int): The number of shots to execute the circuit.        
         users (list): The users that executed the circuit.        
         qubit_number (list): The number of qubits of the circuit per user.
-        circuit_names (list): The name of the circuit that was executed per user.        
+        circuit_names (list): The name of the circuit that was executed per user.
+        layout_fisico (list, optional): Physical layout for transpilation/execution.
         s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
 
     Returns:
@@ -179,20 +180,52 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
         
     device = AwsDevice(machine)
 
+    # 🔑 Si se proporciona un layout, se "vincula" el circuito a los qubits físicos
+    if layout_fisico:
+        print(f"🟦 Usando layout físico para AWS:")
+        print(f"   Layout: {layout_fisico}")
+        print(f"   Longitud del layout: {len(layout_fisico)}")
+        print(f"   Circuito original usa {circuit.qubit_count} qubits lógicos (0-{circuit.qubit_count-1})")
+        print(f"   Qubits físicos únicos en layout: {len(set(layout_fisico))}")
+        print(f"   Rango de índices físicos: {min(layout_fisico)} - {max(layout_fisico)}")
+        
+        # Validar que el layout tenga el mismo número de qubits que el circuito
+        if len(layout_fisico) != circuit.qubit_count:
+            print(f"⚠️ Layout inválido: {len(layout_fisico)} qubits en layout, pero el circuito tiene {circuit.qubit_count}")
+            circuit_to_run = circuit
+        else:
+            # Validar que no haya índices duplicados en el layout
+            if len(set(layout_fisico)) != len(layout_fisico):
+                print(f"⚠️ Layout tiene qubits duplicados, usando circuito sin mapeo")
+                circuit_to_run = circuit
+            else:
+                # Crear mapeo: qubit lógico i -> qubit físico layout_fisico[i]
+                # En Braket, esto se hace usando add_circuit con target
+                try:
+                    mapped_circuit = Circuit()
+                    mapped_circuit.add_circuit(circuit, target=layout_fisico)
+                    circuit_to_run = mapped_circuit
+                    print(f"✅ Circuito mapeado correctamente, usa {circuit_to_run.qubit_count} qubits físicos")
+                except Exception as e:
+                    print(f"⚠️ Error al mapear circuito: {e}")
+                    circuit_to_run = circuit
+    else:
+        circuit_to_run = circuit
+
+
     if "sv1" not in machine and "tn1" not in machine:
 
         s3_folder = ('amazon-braket-jorgecs', 'test/')  # Correct format #TODO change this
 
-        task = device.run(circuit, s3_folder, shots=x, poll_timeout_seconds=5 * 24 * 60 * 60) # Hacer lo mismo que con ibm para recuperar los resultados, guardar el id, usuarios... y despues en el scheduler, al iniciarlo, buscar el el bucket s3 si están los resultados, si no, esperar a que lleguen
+        task = device.run(circuit_to_run, s3_folder, shots=x, poll_timeout_seconds=5 * 24 * 60 * 60) # Hacer lo mismo que con ibm para recuperar los resultados, guardar el id, usuarios... y despues en el scheduler, al iniciarlo, buscar el el bucket s3 si están los resultados, si no, esperar a que lleguen
 
         #------------------------#
-        id = task # Get the job id
+        id = task.id  # 🔑 Obtener el ID de la tarea como string
         user_shots = [shots] * len(circuit_names)
         provider = 'aws'
         script_dir = os.path.dirname(os.path.realpath(__file__))
         ids_file = os.path.join(script_dir, 'ids.txt')  # create the path to the results file in the script's directory
         with open(ids_file, 'a') as file:
-            file.write(json.dumps({id:(users,qubit_number)}))
             file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
             file.write('\n')
         #------------------------#
@@ -211,6 +244,6 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
 
         return counts
     else:
-        task = device.run(circuit, s3_folder, shots=x)
+        task = device.run(circuit_to_run, s3_folder, shots=x)
         counts = task.result().measurement_counts
         return counts

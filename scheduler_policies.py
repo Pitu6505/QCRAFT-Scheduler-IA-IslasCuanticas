@@ -5,12 +5,13 @@ from flask import request
 import re
 
 from executeCircuitIBM import executeCircuitIBM
-from executeCircuitAWS import runAWS, runAWS_save, code_to_circuit_aws
+from executeCircuitAWS import code_to_circuit_aws, runAWS_save
+from dinamico_copy import optimizar_espacio_dinamico
+from DeepMochilaId_copy import optimizar_espacio_ml, SeleccionadorNN, ColaDataset, train_model
+from IslaCuantica import Cola_Formateada
 from ResettableTimer import ResettableTimer
 from threading import Thread
 from collections import deque
-from DeepMochilaId_copy import optimizar_espacio_ml, SeleccionadorNN, ColaDataset, train_model
-from dinamico_copy import optimizar_espacio_dinamico
 import json
 import numpy as np
 import os
@@ -102,9 +103,9 @@ class SchedulerPolicies:
         """
         self.app = app
         self.time_limit_seconds = 10
-        self.max_qubits = 133
+        self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_torino' #''local'
+        self.machine_ibm = 'ibm_fez' #'ibm_torino' #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -243,7 +244,7 @@ class SchedulerPolicies:
                     [url[3] for url in urls],
                     qb,
                     [url[4] for url in urls],
-                    ''
+                    layout_fisico  # 🔑 Pasar el layout físico
                 )
 
         except Exception as e:
@@ -1029,8 +1030,7 @@ class SchedulerPolicies:
                     queue.remove(url)
             code,qb = [],[]
             print("sumQb", sumQb)
-            shotsUsr = [10000] * len(urls)
-            #shotsUsr = [url[2] for url in urls] # Each url will have its own number of shots, a statistic will be used to get the results after
+            shotsUsr = [10000] # Each url will have its own number of shots, a statistic will be used to get the results after
             self.create_circuit(urls,code,qb,provider)
             data = {"code":code}
 

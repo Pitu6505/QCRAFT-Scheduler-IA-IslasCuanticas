@@ -44,25 +44,43 @@ def get_backend_graph_aws():
     
     # --- INICIO DE CORRECCIÓN ---
     # El grafo de AWS usa strings ('0', '1'). Debemos convertirlos a enteros.
-    coupling_map = [[int(q1), int(q2)] for q1, q2 in g_temp.edges()]
+    # Además, filtramos conexiones a qubits 82 y 83 que no son ejecutables
+    coupling_map = [[int(q1), int(q2)] for q1, q2 in g_temp.edges() 
+                    if int(q1) <= 81 and int(q2) <= 81]
     # --- FIN DE CORRECCIÓN ---
 
     # --- FORMATEAR PROPERTIES ---
 
     # --- INICIO DE CORRECCIÓN 2: Inicialización de Lista ---
-    # 1. Encontramos el ID de qubit más alto (en el grafo o en las props)
+    # 1. Encontramos TODOS los IDs de qubits que realmente existen
     
-    # Ahora 'coupling_map' SÍ tiene enteros, por lo que esto funciona.
-    max_id_from_graph = max(q for edge in coupling_map for q in edge) if coupling_map else 0
+    # IDs del grafo (coupling_map ya tiene enteros)
+    qubit_ids_from_graph = set(q for edge in coupling_map for q in edge) if coupling_map else set()
     
-    # Esto ya funcionaba y devolvía un 'int'
-    max_id_from_props = max(int(q_id) for q_id in aws_qubit_props.keys()) if aws_qubit_props else 0
+    # IDs de las propiedades
+    qubit_ids_from_props = set(int(q_id) for q_id in aws_qubit_props.keys()) if aws_qubit_props else set()
     
-    # Ahora ambos son 'int' y 'max()' funciona.
-    max_qubit_id = max(max_id_from_graph, max_id_from_props)
+    # Unión de ambos conjuntos para tener TODOS los qubits que existen
+    all_qubit_ids = qubit_ids_from_graph | qubit_ids_from_props
+    
+    # 🔑 CORRECCIÓN: Ankaa-3 reporta qubits 82 y 83 en el grafo, pero no son ejecutables
+    # La máquina real solo acepta qubits del 0 al 81 (82 qubits totales, sin 42 y 48)
+    all_qubit_ids = {q for q in all_qubit_ids if q <= 81}
+    
+    # El ID máximo (para dimensionar la lista)
+    max_qubit_id = max(all_qubit_ids) if all_qubit_ids else 0
 
     # 2. El tamaño de la lista debe ser 1 + el ID más grande
+    # (para que el índice max_qubit_id sea válido)
     list_size = max_qubit_id + 1
+    
+    print(f"📊 Qubits detectados: {len(all_qubit_ids)} (IDs del 0 al {max_qubit_id}, no continuos)")
+    print(f"📊 IDs de qubits que existen: {sorted(all_qubit_ids)}")
+    
+    # Detectar huecos en la numeración
+    missing_ids = set(range(max_qubit_id + 1)) - all_qubit_ids
+    if missing_ids:
+        print(f"⚠️ Qubits faltantes (huecos): {sorted(missing_ids)}")
 
     # 3. Creamos una lista "dummy" que graph_utils.py pueda
     #    procesar y asignar 'noise=inf' de forma segura.
