@@ -80,8 +80,9 @@ def place_circuits_logical(G, circuits):
     print(f"🔧 Usando umbral de ruido: {noise_threshold:.4f}")
 
     for circuit in circuits:
-        if 'edges' in circuit:
+        if 'edges' in circuit and circuit['edges']:
             logical_graph = nx.Graph()
+            logical_graph.add_nodes_from(range(circuit['size']))  # Añadir TODOS los nodos primero
             logical_graph.add_edges_from(circuit['edges'])
             mapping = find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold)
 
@@ -94,6 +95,80 @@ def place_circuits_logical(G, circuits):
 
         # Modo estándar si no se pudo mapear lógica
         size = circuit['size']
+        
+        # Si el circuito tiene edges definidos, obtener componentes conectados
+        if 'edges' in circuit and circuit['edges']:
+            logical_graph = nx.Graph()
+            logical_graph.add_nodes_from(range(size))  # Asegurar que todos los nodos existen
+            logical_graph.add_edges_from(circuit['edges'])
+            components = list(nx.connected_components(logical_graph))
+            
+            print(f"🔍 [DEBUG] Circuito {circuit['id']}: size={size}, edges={circuit['edges']}, componentes={components}")
+            
+            # Si hay componentes desconectados, asignar cada uno por separado
+            if len(components) > 1:
+                print(f"  → Detectados {len(components)} componentes desconectados, asignando por separado...")
+                all_assigned = []
+                success = True
+                
+                for component in components:
+                    comp_size = len(component)
+                    
+                    # Para nodos aislados (sin conexiones), asignar un solo qubit
+                    if comp_size == 1:
+                        best_node = None
+                        best_noise = float('inf')
+                        
+                        for node in G.nodes:
+                            if node in used_nodes:
+                                continue
+                            node_noise = G.nodes[node]['noise']
+                            if node_noise <= noise_threshold and node_noise < best_noise:
+                                # Verificar distancia mínima
+                                if is_far_enough(G, [node], used_nodes):
+                                    best_noise = node_noise
+                                    best_node = node
+                        
+                        if best_node is not None:
+                            used_nodes.add(best_node)
+                            all_assigned.append(best_node)
+                        else:
+                            success = False
+                            break
+                    else:
+                        # Para componentes conectados, usar BFS
+                        best_group = None
+                        best_noise = float('inf')
+                        
+                        for node in G.nodes:
+                            if node in used_nodes or G.nodes[node]['noise'] > noise_threshold:
+                                continue
+                            
+                            candidate_groups = bfs_connected_groups(G, node, comp_size, used_nodes, noise_threshold)
+                            
+                            for group in candidate_groups:
+                                total_noise = sum(G.nodes[n]['noise'] for n in group)
+                                if total_noise < best_noise:
+                                    best_noise = total_noise
+                                    best_group = group
+                        
+                        if best_group:
+                            used_nodes.update(best_group)
+                            all_assigned.extend(best_group)
+                        else:
+                            success = False
+                            break
+                
+                if success:
+                    print(f"  ✅ Asignación exitosa de componentes: {all_assigned}")
+                    placed.append((circuit['id'], all_assigned))
+                    continue
+                else:
+                    # Revertir nodos usados si falló
+                    for node in all_assigned:
+                        used_nodes.discard(node)
+        
+        # Mapeo estándar para circuitos sin estructura o componentes completamente conectados
         best_group = None
         best_noise = float('inf')
 

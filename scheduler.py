@@ -52,7 +52,7 @@ class Scheduler:
         self.app.config['DB'] = os.getenv('DB')
         self.app.config['DB_PORT'] = os.getenv('DB_PORT')
         
-        self.max_qubits = 127
+        self.max_qubits = 156
         
         mongo_uri = f"mongodb://{self.app.config['DB']}:{self.app.config['DB_PORT']}/{os.getenv('DB_NAME')}"
         self.client = MongoClient(mongo_uri)
