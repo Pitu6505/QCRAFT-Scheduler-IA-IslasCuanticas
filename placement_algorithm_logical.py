@@ -76,7 +76,7 @@ def place_circuits_logical(G, circuits):
     
     # Calcular umbral dinámico basado en la máquina actual
     dynamic_threshold = calculate_dynamic_noise_threshold(G, percentile=95)
-    noise_threshold = max(MAX_NOISE_THRESHOLD, dynamic_threshold)  # Usar el mayor
+    noise_threshold = dynamic_threshold                 #max(MAX_NOISE_THRESHOLD, dynamic_threshold)  # Usar el mayor, si quieres usar solo dinámico, cambia esto
     print(f"🔧 Usando umbral de ruido: {noise_threshold:.4f}")
 
     for circuit in circuits:
