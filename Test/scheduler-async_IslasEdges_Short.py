@@ -93,7 +93,7 @@ async def post_request(session, url, data):
 async def main():
     data_template = {
         "url": "",
-        "shots": 10,
+        "shots": 10000,
         "provider": ['ibm'],
         "policy": "Islas_Cuanticas_Edges"
     }

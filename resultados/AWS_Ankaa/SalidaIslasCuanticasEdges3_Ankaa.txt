@@ -1,0 +1,12 @@
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x0000017CAE831A90>
+Cola Seleccionada:[{'id': '95678694187663478619489909647046244592', 'size': 3}, {'id': '260874036952806035787210715653552663362', 'size': 6}, {'id': '320991631249536641899460861619231140518', 'size': 4}, {'id': '64945483119266650860177217382445512812', 'size': 2}]
+Layout Físico:[77, 70, 71, 5, 4, 3, 2, 1, 0, 28, 29, 30, 37, 55, 62]
+Tiempo Ejecucion:0.828125
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x0000017CAFAB34D0>
+Cola Seleccionada:[{'id': '179174732281896959827911968291892820027', 'size': 3}, {'id': '229998891650398768373822058115219825483', 'size': 4}, {'id': '195565190401480712817702052375094198525', 'size': 2}, {'id': '162023414009003421490877733346652720026', 'size': 4}]
+Layout Físico:[77, 70, 71, 5, 4, 3, 2, 28, 29, 51, 52, 59, 60]
+Tiempo Ejecucion:1.5625
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x0000017CAFAB1F90>
+Cola Seleccionada:[{'id': '46527519967523427950550404375767555480', 'size': 2}, {'id': '45105634972605739709569790770734484266', 'size': 4}, {'id': '151642756385498635378949531090213475714', 'size': 4}, {'id': '160680661777105854054929102269305827984', 'size': 3}]
+Layout Físico:[77, 70, 5, 4, 3, 2, 50, 43, 36, 35, 55, 54, 61]
+Tiempo Ejecucion:0.71875

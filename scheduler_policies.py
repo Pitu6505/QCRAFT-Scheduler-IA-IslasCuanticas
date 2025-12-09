@@ -103,9 +103,9 @@ class SchedulerPolicies:
         """
         self.app = app
         self.time_limit_seconds = 10
-        self.max_qubits = 156
+        self.max_qubits = 133
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_fez' #'ibm_torino' #''local'
+        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -596,7 +596,7 @@ class SchedulerPolicies:
             elapsed_time = end_time - start_time
             print(f"Tiempo de ejecución de send_edges: {elapsed_time:.6f} segundos")
 
-            with open("./SalidaIslasCuanticasEdges.txt", 'a') as file:
+            with open("./resultados/SalidaIslasCuanticasEdges.txt", 'a') as file:
                 file.write("Cola Formateada con edges:")
                 file.write(str(formatted_queue))
                 file.write("\n")
