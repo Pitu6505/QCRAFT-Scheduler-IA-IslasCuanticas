@@ -8,7 +8,7 @@ pathCircuit = 'circuit'
 
 
 urls = {
-    "deutsch-jozsa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/Deutsch-Jozsa.py"
+    #"deutsch-jozsa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/Deutsch-Jozsa.py"
     # "bernstein-vazirani": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/bernstein-vazirani.py",
     # "full_adder": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/full_adder.py",
     # "grover": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/grover.py",
@@ -19,7 +19,7 @@ urls = {
     # "qwalk": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qwalk.py",
     # "shor": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/shor.py",
     # "simon": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/simon.py",
-    # "tsp": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/tsp.py"
+     "tsp": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/tsp.py"
 }
 
 async def post_request(session, url, data):
@@ -29,7 +29,7 @@ async def post_request(session, url, data):
 async def main():
     data_template = {
         "url": "",
-        "shots": 10,
+        "shots": 1000,
         "provider": ['aws'],
         "policy": "time"
     }

@@ -1030,7 +1030,7 @@ class SchedulerPolicies:
                     queue.remove(url)
             code,qb = [],[]
             print("sumQb", sumQb)
-            shotsUsr = [10000] # Each url will have its own number of shots, a statistic will be used to get the results after
+            shotsUsr = [url[2] for url in urls] # Each url will have its own number of shots, a statistic will be used to get the results after
             self.create_circuit(urls,code,qb,provider)
             data = {"code":code}
 
