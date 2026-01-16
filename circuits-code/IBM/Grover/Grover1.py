@@ -1,26 +1,23 @@
-from qiskit import QuantumCircuit
-from qiskit_aer import AerSimulator
-from qiskit.visualization import plot_histogram
+from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+import numpy as np
 
-# Configuración de disparos (shots)
-shots = 1024
+qreg = QuantumRegister(2, 'q')
+creg = ClassicalRegister(2, 'meas')
 
-# 1. Inicializar el circuito
-# En Qiskit, debemos especificar cuántos qubits usaremos (índices 0 y 1 = 2 qubits)
-qc = QuantumCircuit(2)
+circuit = QuantumCircuit(qreg, creg)
 
-# 2. Aplicar las puertas (Traducción directa de Braket)
-qc.h(0)
-qc.h(1)
 
-qc.x(1)
-qc.h(1)
+circuit.h(qreg[0])
+circuit.h(qreg[1])
 
-# En Qiskit, CNOT se escribe generalmente como .cx()
-qc.cx(0, 1) 
+circuit.x(qreg[1])
+circuit.h(qreg[1])
 
-qc.h(1)
-qc.x(1)
-qc.h(1)
+circuit.cx(qreg[0], qreg[1])
 
-qc.measure_all()
+circuit.h(qreg[1])
+circuit.x(qreg[1])
+circuit.h(qreg[1])
+
+circuit.measure(qreg[0], creg[0])
+circuit.measure(qreg[1], creg[1])
