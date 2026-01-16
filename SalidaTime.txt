@@ -2,3 +2,7 @@ Suma de qBits:4
 Tiempo Ejecucion:0.0
 Suma de qBits:4
 Tiempo Ejecucion:0.0
+Suma de qBits:2
+Tiempo Ejecucion:0.0
+Suma de qBits:3
+Tiempo Ejecucion:0.0
