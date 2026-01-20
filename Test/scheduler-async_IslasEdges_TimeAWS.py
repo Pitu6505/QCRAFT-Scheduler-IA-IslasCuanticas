@@ -8,18 +8,18 @@ pathCircuit = 'circuit'
 
 
 urls = {
-    #"deutsch-jozsa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/Deutsch-Jozsa.py"
-    # "bernstein-vazirani": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/bernstein-vazirani.py",
-    # "full_adder": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/full_adder.py",
-    "grover": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/grover.py",
-    # "kickback": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/kickback.py",
-    # "phase_estimation": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/phase_estimation.py",
-    # "qaoa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qaoa.py",
-    # "qft": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qft.py",
-    # "qwalk": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qwalk.py",
-    # "shor": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/shor.py",
-    # "simon": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/simon.py",
-    # "tsp": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/tsp.py"
+    #  "deutsch-jozsa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/Deutsch-Jozsa.py",
+    #  "bernstein-vazirani": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/bernstein-vazirani.py",
+    #  "full_adder": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/full_adder.py",
+     "grover": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/grover.py",
+    #  "kickback": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/kickback.py",
+    #  "phase_estimation": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/phase_estimation.py",
+    #  "qaoa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qaoa.py",
+    #  "qft": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qft.py",
+    #  "qwalk": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/qwalk.py",
+    #  "shor": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/shor.py",
+    #  "simon": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/simon.py",
+    #  "tsp": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/tsp.py"
 }
 
 async def post_request(session, url, data):

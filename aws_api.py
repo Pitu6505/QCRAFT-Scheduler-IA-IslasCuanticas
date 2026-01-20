@@ -116,11 +116,14 @@ def get_backend_graph_aws():
 
         # T1 (Índice 0) - DEJAR EN SEGUNDOS
         t1_s = props.get('T1', {}).get('value', 1e-9)
-        ibm_style_list[0] = {'value': t1_s} # <-- ¡Error corregido! No convertir a ms.
+        t1_us = t1_s * 1e6  # segundos → microsegundos
+        ibm_style_list[0] = {'value': t1_us}
 
         # T2 (Índice 1) - DEJAR EN SEGUNDOS
+        # T2 (Índice 1) - AWS devuelve en SEGUNDOS, convertir a MICROSEGUNDOS  
         t2_s = props.get('T2', {}).get('value', 1e-9)
-        ibm_style_list[1] = {'value': t2_s} # <-- ¡Error corregido! No convertir a ms.
+        t2_us = t2_s * 1e6  # segundos → microsegundos
+        ibm_style_list[1] = {'value': t2_us}
         
         # Readout Error (Índice 5)
         readout_fidelity = None

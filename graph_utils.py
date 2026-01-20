@@ -60,6 +60,10 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
             # Si T1 o T2 son exactamente 0, este qubit no existe realmente
             if t1 == 0.0 or t2 == 0.0:
                 continue
+
+            readout_error_raw = readout_error
+            readout_error = readout_error_raw / 1e6 if readout_error_raw > 1 else readout_error_raw
+
             
             noise = (
                 ALPHA * readout_error +
@@ -67,9 +71,8 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
                 GAMMA * (1 / t2 if t2 > 0 else float('inf'))
             )
             G.add_node(i, noise=noise)
-        except (IndexError, KeyError, TypeError, ZeroDivisionError):
-            # Si hay error al procesar las propiedades, no añadir el nodo
-            continue
+        except (IndexError, KeyError, ZeroDivisionError):
+            G.add_node(i, noise=float('inf'))
 
     # Añadir aristas solo si ambos extremos están en la partición Y en el grafo
     # (para evitar crear nodos sin propiedades)
