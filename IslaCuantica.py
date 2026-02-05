@@ -41,14 +41,14 @@ def Cola_Formateada(queue: CircuitQueue, provider: str):
     )
 
     # Debug inicial
-    print("\n🔎 [DEBUG] Cola original recibida:")
+    print("\n [DEBUG] Cola original recibida:")
     for c in queue.get_queue():
         print(f"  - id={c['id']}, size={c['size']}")
 
     # Paso 2: Ejecutar el algoritmo de asignación
     placements, errores = place_circuits(G, queue.get_queue())
 
-    print("\n🔎 [DEBUG] Resultado de placements:")
+    print("\n [DEBUG] Resultado de placements:")
     for p in placements:
         if p is not None:
             print(f"  - id={p[0]}, qubits físicos={p[1]}")
@@ -77,26 +77,26 @@ def Cola_Formateada(queue: CircuitQueue, provider: str):
             else:
                 layout_global.append(assigned)
 
-            print(f"✅ [DEBUG] Circuito {circ_id} (size={circuito['size']}) "
+            print(f" [DEBUG] Circuito {circ_id} (size={circuito['size']}) "
                   f"asignado a qubits físicos {assigned}")
         else:
-            print(f"⚠️ [WARNING] Placement con id {circ_id} no estaba en la cola original")
+            print(f" [WARNING] Placement con id {circ_id} no estaba en la cola original")
 
     # Paso 5: Validar correlación entre layout y tamaños de circuitos
     total_qubits_needed = sum(int(c['size']) for c in cola_formateada)
     total_qubits_assigned = len(layout_global)
 
-    print("\n🔎 [DEBUG] Cola formateada final:")
+    print("\n [DEBUG] Cola formateada final:")
     for c in cola_formateada:
         print(f"  - id={c['id']}, size={c['size']}")
 
-    print(f"\n🔎 [DEBUG] Layout global construido: {layout_global}")
+    print(f"\n [DEBUG] Layout global construido: {layout_global}")
 
     if total_qubits_assigned == total_qubits_needed:
-        print(f"✅ [VALIDACIÓN] Layout válido: {total_qubits_assigned} qubits asignados "
+        print(f" [VALIDACIÓN] Layout válido: {total_qubits_assigned} qubits asignados "
               f"para {total_qubits_needed} qubits lógicos.")
     else:
-        print(f"❌ [ERROR] Layout inconsistente: {total_qubits_assigned} qubits físicos asignados "
+        print(f" [ERROR] Layout inconsistente: {total_qubits_assigned} qubits físicos asignados "
               f"vs {total_qubits_needed} qubits lógicos requeridos.")
         print("   → Revisa el algoritmo de asignación o la filtración de la cola.")
 

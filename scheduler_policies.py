@@ -434,14 +434,6 @@ class SchedulerPolicies:
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
             
-            # if provider == 'ibm':
-            # # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
-            #     while self.get_ibm_queue_length() >= 3:
-            #         print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
-            #         time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
-
-            # ibm_queue_length = self.get_ibm_queue_length()
-            ##print(f"✅ La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
             
             # Formateo de la cola usando CircuitQueue correctamente
             formatted_queue = CircuitQueue()
@@ -451,16 +443,16 @@ class SchedulerPolicies:
                     required_qubits=num_qubits,
                     edges=None
                 )
-            print(f"📌 Cola formateada: {formatted_queue.get_queue()}")
+            print(f" Cola formateada: {formatted_queue.get_queue()}")
 
             # Llamada al método Cola_Formateada de IslaCuantica.py
             cola_procesada, layout_fisico = Cola_Formateada(formatted_queue, provider)
-            print(f"✅ Cola procesada: {cola_procesada}")
-            print(f"✅ Layout físico asignado: {layout_fisico}")
+            print(f" Cola procesada: {cola_procesada}")
+            print(f" Layout físico asignado: {layout_fisico}")
 
             # Si no hay elementos seleccionados, detenemos la ejecución
             if not cola_procesada:
-                print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
+                print(" No se han seleccionado elementos, deteniendo ejecución.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
                 return
 
@@ -485,7 +477,7 @@ class SchedulerPolicies:
             # **Verificar si los elementos realmente se eliminaron**
             elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
             if elementos_restantes:
-                print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
+                print(f"ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
             # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
                 # Mostrar por pantalla la suma de qubits en todos los circuitos a ejecutar
@@ -525,10 +517,9 @@ class SchedulerPolicies:
 
             # **10. Verificar si la cola está vacía antes de reiniciar el temporizador**
             if not queue:
-                print("✅ Cola vacía después de ejecución, deteniendo temporizador.")
+                print(" Cola vacía después de ejecución, deteniendo temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].stop()
             else:
-                ##print("🔁 La cola no está vacía, reiniciando temporizador.")
                 self.services['Islas_Cuanticas'].timers[provider].reset()
 
     def send_graph_placement_edges(self, queue, max_qubits, provider, executeCircuit, machine):
@@ -551,21 +542,21 @@ class SchedulerPolicies:
             formatted_queue = CircuitQueue()
             for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
                 #print("mostrando circuito:", circuit)
-                edges = self.extract_edges_from_circuit(circuit)  # 🔑 Aquí extraemos las conexiones
+                edges = self.extract_edges_from_circuit(circuit) 
                 formatted_queue.add_circuit(
                     circuit_id=str(user),
                     required_qubits=num_qubits,
                     edges=edges
                 )
-            print(f"📌 Cola formateada con edges: {formatted_queue.get_queue()}")
+            print(f"Cola formateada con edges: {formatted_queue.get_queue()}")
 
             # Llamada al método que ya tienes implementado
             cola_procesada, layout_fisico = Cola_Formateada_edges(formatted_queue, provider)
-            print(f"✅ Cola procesada: {cola_procesada}")
-            print(f"✅ Layout físico asignado: {layout_fisico}")
+            print(f" Cola procesada: {cola_procesada}")
+            print(f" Layout físico asignado: {layout_fisico}")
 
             if not cola_procesada:
-                print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
+                print(" No se han seleccionado elementos, deteniendo ejecución.")
                 self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
                 return
 
@@ -611,7 +602,7 @@ class SchedulerPolicies:
                 file.write("\n")
 
             if not queue:
-                print("✅ Cola vacía después de ejecución, deteniendo temporizador.")
+                print(" Cola vacía después de ejecución, deteniendo temporizador.")
                 self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
             else:
                 self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
@@ -686,34 +677,33 @@ class SchedulerPolicies:
 
 
         if not queue:
-            print("⚠️ La cola está vacía, deteniendo temporizador.")
+            print(" La cola está vacía, deteniendo temporizador.")
             self.services['Optimizacion_ML'].timers[provider].stop()
             return
 
         if provider == 'ibm':
             # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
             while self.get_ibm_queue_length() >= 3:
-                print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
+                print(" La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
                 time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
 
             ibm_queue_length = self.get_ibm_queue_length()
-            ##print(f"✅ La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
-
+            ##print(f" La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
         # 2. Formatear la cola para ML
         formatted_queue = [(str(user), num_qubits, iteracion) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue]
-        print(f"📌 Cola formateada para ML: {formatted_queue}")
+        print(f" Cola formateada para ML: {formatted_queue}")
 
         # 3. Selección de circuitos usando ML o incluyendo todos si caben
         total_qb = sum(item[1] for item in formatted_queue)
         seleccionados, _, nueva_cola = optimizar_espacio_ml(self.model, formatted_queue, max_qubits, self.forced_threshold)
 
         max_qbits = sum(item[1] for item in seleccionados)
-        ##print(f"✅ Elementos seleccionados en ML: {seleccionados}")
-        ##print(f"🔢 Suma total de qubits seleccionados: {max_qbits}")
+        ##print(f" Elementos seleccionados en ML: {seleccionados}")
+        ##print(f" Suma total de qubits seleccionados: {max_qbits}")
 
         # 4. Si no hay elementos seleccionados, detenemos la ejecución
         if not seleccionados:
-            print("⚠️ No se han seleccionado elementos, deteniendo ejecución.")
+            print(" No se han seleccionado elementos, deteniendo ejecución.")
             self.services['Optimizacion_ML'].timers[provider].stop()
             return
 
@@ -737,7 +727,7 @@ class SchedulerPolicies:
         # **Verificar si los elementos realmente se eliminaron**
         elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
         if elementos_restantes:
-            print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
+            print(f" ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
         # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
         if urls_for_create:
@@ -770,10 +760,9 @@ class SchedulerPolicies:
 
         # **10. Verificar si la cola está vacía antes de reiniciar el temporizador**
         if not queue:
-            print("✅ Cola vacía después de ejecución, deteniendo temporizador.")
+            print(" Cola vacía después de ejecución, deteniendo temporizador.")
             self.services['Optimizacion_ML'].timers[provider].stop()
         else:
-            ##print("🔁 La cola aún tiene elementos, reiniciando temporizador.")
             self.services['Optimizacion_ML'].timers[provider].reset()
 
     def send_PD(self, queue: list, max_qubits: int, provider: str, executeCircuit: Callable, machine: str) -> None:
@@ -785,30 +774,26 @@ class SchedulerPolicies:
 
 
         if not queue:
-            print("⚠️ La cola está vacía, deteniendo temporizador.")
+            print(" La cola está vacía, deteniendo temporizador.")
             self.services['Optimizacion_PD'].timers[provider].stop()
             return
         
                 # 1. Verificar la cola de IBM antes de ejecutar cualquier circuito
         while self.get_ibm_queue_length() >= 3:
-            print("⏳ La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
+            print(" La cola de IBM tiene 3 o más trabajos en espera. Esperando para enviar circuitos...")
             time.sleep(10)  # Esperamos 10 segundos antes de volver a verificar
 
         ibm_queue_length = self.get_ibm_queue_length()
-        ##print(f"✅ La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
+        ##print(f" La cola de IBM tiene {ibm_queue_length} trabajos en espera. Continuando con la ejecución.")
 
         # 1. Formatear la cola para ML
         formatted_queue = [(str(user), num_qubits, iteracion) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue]
-        print(f"📌 Cola formateada para PD: {formatted_queue}")
+        print(f" Cola formateada para PD: {formatted_queue}")
 
 
         # 2. Selección de circuitos usando ML o incluyendo todos si caben
         total_qb = sum(item[1] for item in formatted_queue)
-        #if total_qb <= max_qubits:
-         #   print("📌 Todos los elementos caben en la capacidad. Se seleccionan todos.")
-         #   seleccionados = formatted_queue
-         #   nueva_cola = []
-        # else:
+
         seleccionados, _, nueva_cola = optimizar_espacio_dinamico( formatted_queue, max_qubits, self.forced_threshold)
         
         max_qbits = sum(item[1] for item in seleccionados)
@@ -821,11 +806,9 @@ class SchedulerPolicies:
 
         # 4. Obtener los IDs seleccionados
         seleccionados_ids = {str(s[0]) for s in seleccionados}
-        # print(f"📌 IDs seleccionados: {seleccionados_ids}")
 
         # 5. Filtrar los circuitos completos correspondientes a los IDs seleccionados
         seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
-        # print(f"🚀 Elementos seleccionados completos PD: {seleccionados_completos}")
 
         # 6. Formatear los datos para create_circuit
         urls_for_create = [(circuit, num_qubits, shots, user, circuit_name, maxDepth) for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos]
@@ -840,7 +823,7 @@ class SchedulerPolicies:
         # **Verificar si los elementos realmente se eliminaron**
         elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
         if elementos_restantes:
-            print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
+            print(f" ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
         # **8. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
         if urls_for_create:

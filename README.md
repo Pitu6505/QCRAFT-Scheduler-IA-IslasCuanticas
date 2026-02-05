@@ -1,4 +1,4 @@
-# QCRAFT-Scheduler: Quantum Island Placement System
+# QCRAFT QIM:  Quantum Island Mapping
 
 ![Python Versions](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue.svg)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
@@ -7,9 +7,9 @@
 
 ## Description
 
-**QCRAFT-Scheduler** is an advanced quantum circuit scheduling and optimization system that implements intelligent placement algorithms for quantum circuit execution on both IBM Quantum and AWS Braket platforms. 
+**QCRAFT QIM** is an advanced quantum circuit scheduling and optimization system that implements intelligent placement algorithms for quantum circuit execution on both IBM Quantum and AWS Braket platforms. 
 
-The system's core innovation is the **Quantum Islands (Islas Cuánticas)** algorithm, which optimizes circuit placement on quantum processors by:
+The system's core innovation is the **Quantum Island Mapping** algorithm, which optimizes circuit placement on quantum processors by:
 - Analyzing the physical topology and noise characteristics of quantum backends
 - Creating "quantum islands" - isolated regions of low-noise, well-connected qubits
 - Intelligently mapping multiple quantum circuits to these islands to minimize decoherence and gate errors

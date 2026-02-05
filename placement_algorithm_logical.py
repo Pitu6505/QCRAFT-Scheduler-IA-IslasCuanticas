@@ -15,7 +15,7 @@ def calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util):
     noise_values.sort()
     index = int(len(noise_values) * percentile / 100)
     dynamic_threshold = noise_values[min(index, len(noise_values) - 1)]
-    print(f"🎯 Umbral dinámico calculado: {dynamic_threshold:.4f} (percentil {percentile})")
+    print(f" Umbral dinámico calculado: {dynamic_threshold:.4f} (percentil {percentile})")
     return dynamic_threshold
 
 def is_far_enough(G, candidate_nodes, used_nodes):
@@ -108,13 +108,13 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
     # Calcular umbral dinámico basado en la máquina actual
     dynamic_threshold = calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util)
     noise_threshold = dynamic_threshold                 #max(MAX_NOISE_THRESHOLD, dynamic_threshold)  # Usar el mayor, si quieres usar solo dinámico, cambia esto
-    print(f"🔧 Usando umbral de ruido: {noise_threshold:.4f}")
+    print(f" Usando umbral de ruido: {noise_threshold:.4f}")
 
     for idx, circuit in enumerate(circuits):
         # Verificar timeout global
         elapsed = time.time() - start_time
         if elapsed > max_time_seconds:
-            print(f"⏰ TIMEOUT GLOBAL: {elapsed:.2f}s > {max_time_seconds}s. Procesados {len(placed)}/{len(circuits)} circuitos.")
+            print(f" TIMEOUT GLOBAL: {elapsed:.2f}s > {max_time_seconds}s. Procesados {len(placed)}/{len(circuits)} circuitos.")
             remaining = [c['id'] for c in circuits if c['id'] not in [p[0] for p in placed]]
             for cid in remaining:
                 errors.append(f"Circuito {cid} no procesado por timeout global")
@@ -122,7 +122,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
         
         # Progress indicator cada 5 circuitos
         if idx % 5 == 0:
-            print(f"📊 Progreso: {idx}/{len(circuits)} circuitos procesados ({elapsed:.1f}s transcurridos)")
+            print(f" Progreso: {idx}/{len(circuits)} circuitos procesados ({elapsed:.1f}s transcurridos)")
 
         # Solo intentar isomorfismo para circuitos pequeños (≤4 qubits) - más rápido y probable, si no va, poner aqui > 4
         if 'edges' in circuit and circuit['edges'] and circuit['size'] <= 4:
@@ -151,7 +151,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
             logical_graph.add_edges_from(circuit['edges'])
             components = list(nx.connected_components(logical_graph))
             
-            print(f"🔍 [DEBUG] Circuito {circuit['id']}: size={size}, edges={circuit['edges']}, componentes={components}")
+            print(f" [DEBUG] Circuito {circuit['id']}: size={size}, edges={circuit['edges']}, componentes={components}")
             
             # Si hay componentes desconectados, asignar cada uno por separado
             if len(components) > 1:
@@ -216,7 +216,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
                             break
                 
                 if success:
-                    print(f"  ✅ Asignación exitosa de componentes: {all_assigned}")
+                    print(f"  Asignación exitosa de componentes: {all_assigned}")
                     placed.append((circuit['id'], all_assigned))
                     continue
                 else:
