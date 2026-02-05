@@ -5,22 +5,6 @@
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.4-blueviolet.svg)](https://qiskit.org/)
 [![AWS Braket](https://img.shields.io/badge/AWS_Braket-1.101.0-orange.svg)](https://aws.amazon.com/braket/)
 
-## Table of Contents
-- [Description](#description)
-- [Key Features](#key-features)
-- [Research Innovations](#research-innovations)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Advanced Usage](#advanced-usage)
-- [Scheduling Policies](#scheduling-policies)
-- [Configuration](#configuration)
-- [API Reference](#api-reference)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Citation](#citation)
-
 ## Description
 
 **QCRAFT-Scheduler** is an advanced quantum circuit scheduling and optimization system that implements intelligent placement algorithms for quantum circuit execution on both IBM Quantum and AWS Braket platforms. 
