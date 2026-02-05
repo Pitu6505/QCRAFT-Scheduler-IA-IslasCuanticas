@@ -740,14 +740,13 @@ class SchedulerPolicies:
             print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
         # **9. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
-        """
         if urls_for_create:
             code, qb = [], []
             shotsUsr = [item[2] for item in urls_for_create]
             self.create_circuit(urls_for_create, code, qb, provider)
             data = {"code": code}
 
-            Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine)).start()"""
+            Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine)).start()
         
         end_time = time.process_time()  # Finalizar el timer
         elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
@@ -844,7 +843,6 @@ class SchedulerPolicies:
             print(f"⚠️ ERROR: Estos elementos NO se eliminaron correctamente: {elementos_restantes}")
 
         # **8. Ejecutar los circuitos seleccionados en un solo hilo para evitar concurrencia descontrolada**
-        """
         if urls_for_create:
             code, qb = [], []
             shotsUsr = [item[2] for item in urls_for_create]
@@ -852,7 +850,9 @@ class SchedulerPolicies:
             data = {"code": code}
 
 
-            Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine)).start()"""
+            Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine)).start()
+
+
         end_time = time.process_time()  # Finalizar el timer
         elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
         ##print(f"Tiempo de ejecución de send: {elapsed_time:.6f} segundos")
@@ -925,7 +925,7 @@ class SchedulerPolicies:
             self.create_circuit(urls,code,qb,provider)
             data = {"code":code}
             Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
-            #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
+            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['shots_depth'].timers[provider].reset()
 
     def send_depth(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
@@ -1001,7 +1001,7 @@ class SchedulerPolicies:
             self.create_circuit(urls,code,qb,provider)
             data = {"code":code}
             Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start() #Parece que sin esto no se resetea el timer cuando termina de componer
-            #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
+            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['shots'].timers[provider].reset()
 
     def send(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
@@ -1050,7 +1050,7 @@ class SchedulerPolicies:
                 file.write("\n")
 
 
-            #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
+            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['time'].timers[provider].reset()
 
     
