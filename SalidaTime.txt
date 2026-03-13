@@ -1,0 +1,26 @@
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:14
+Tiempo Ejecucion:0.0
+Suma de qBits:35
+Tiempo Ejecucion:0.0625
+Suma de qBits:35
+Tiempo Ejecucion:0.0
+Suma de qBits:35
+Tiempo Ejecucion:0.0
+Suma de qBits:35
+Tiempo Ejecucion:0.015625
+Suma de qBits:35
+Tiempo Ejecucion:0.015625
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:7
+Tiempo Ejecucion:0.0
+Suma de qBits:41
+Tiempo Ejecucion:0.0

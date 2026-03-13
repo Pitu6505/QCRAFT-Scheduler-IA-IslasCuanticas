@@ -248,11 +248,17 @@ def get_aws() -> tuple:
                     target_index = x.index('X')
                     code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
                 elif 'Z' in x:
+                    # AWS no soporta CZ directamente, descomponer: CZ = H + CNOT + H
                     target_index = x.index('Z')
-                    code_array.append('circuit.cz('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.h('+str(target_index+despl)+')')
+                    code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.h('+str(target_index+despl)+')')
                 elif 'Y' in x:
+                    # AWS no soporta CY directamente, descomponer: CY = Ry(-pi/2) + CNOT + Ry(pi/2)
                     target_index = x.index('Y')
-                    code_array.append('circuit.cy('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.ry('+str(target_index+despl)+', -np.pi/2)')
+                    code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.ry('+str(target_index+despl)+', np.pi/2)')
             else:
                 for i in range(len(x)):
                     if x[i] == 'H':
@@ -337,11 +343,17 @@ def get_aws_individual() -> tuple:
                     target_index = x.index('X')
                     code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
                 elif 'Z' in x:
+                    # AWS no soporta CZ directamente, descomponer: CZ = H + CNOT + H
                     target_index = x.index('Z')
-                    code_array.append('circuit.cz('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.h('+str(target_index+despl)+')')
+                    code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.h('+str(target_index+despl)+')')
                 elif 'Y' in x:
+                    # AWS no soporta CY directamente, descomponer: CY = Ry(-pi/2) + CNOT + Ry(pi/2)
                     target_index = x.index('Y')
-                    code_array.append('circuit.cy('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.ry('+str(target_index+despl)+', -np.pi/2)')
+                    code_array.append('circuit.cnot('+str(first_index+despl)+', '+str(target_index+despl)+')')
+                    code_array.append('circuit.ry('+str(target_index+despl)+', np.pi/2)')
             else:
                 for i in range(len(x)):
                     if x[i] == 'H':

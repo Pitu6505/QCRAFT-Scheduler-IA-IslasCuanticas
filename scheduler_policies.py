@@ -103,7 +103,7 @@ class SchedulerPolicies:
         """
         self.app = app
         self.time_limit_seconds = 10
-        self.max_qubits = 133
+        self.max_qubits = 82
         self.forced_threshold = 12
         self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
@@ -1032,8 +1032,6 @@ class SchedulerPolicies:
                 file.write(str(elapsed_time))
                 file.write("\n")
 
-
-            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['time'].timers[provider].reset()
 
     

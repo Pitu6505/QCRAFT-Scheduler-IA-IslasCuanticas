@@ -54,6 +54,10 @@ class ResettableTimer:
         """
         with self.lock:
             if not self.timer.is_alive():
+                # Si el timer ya fue ejecutado, crear uno nuevo
+                # Un Thread solo puede ser iniciado una vez
+                if self.timer.ident is not None:
+                    self.timer = Timer(self.timeout, self.callback_wrapper)
                 self.timer.start()
 
     def reset(self) -> None:

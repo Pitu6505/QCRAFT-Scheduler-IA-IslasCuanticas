@@ -29,9 +29,9 @@ async def post_request(session, url, data):
 async def main():
     data_template = {
         "url": "",
-        "shots": 10,
+        "shots": 1000,
         "provider": ['aws'],
-        "policy": "Islas_Cuanticas_Edges"
+        "policy": "time"
     }
     async with aiohttp.ClientSession() as session:
         tasks = []
