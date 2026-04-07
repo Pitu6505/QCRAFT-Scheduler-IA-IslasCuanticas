@@ -102,11 +102,12 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 10
-        self.max_qubits = 82
+        self.time_limit_seconds = 20
+        self.time_limit_seconds_time = 25
+        self.max_qubits = 156 
         self.forced_threshold = 12
         self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
-        self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        self.machine_aws = 'arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1' #'arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet' #'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
         self.model = SeleccionadorNN(input_dim=2, hidden_dim=16)
@@ -124,7 +125,7 @@ class SchedulerPolicies:
             self.model = train_model(self.model, dataset, num_epochs=30, batch_size=32, learning_rate=0.001)
             torch.save(self.model.state_dict(), MODEL_PATH)
 
-        self.services = {'time': Policy(self.send, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+        self.services = {'time': Policy(self.send, self.max_qubits, self.time_limit_seconds_time, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'shots': Policy(self.send_shots, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'depth': Policy(self.send_depth, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'shots_depth': Policy(self.send_shots_depth, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
@@ -174,7 +175,7 @@ class SchedulerPolicies:
         if not self.services[service_name].timers[provider].is_alive():
             self.services[service_name].timers[provider].start()
         n_qubits = sum(item[1] for item in self.services[service_name].queues[provider])
-        if  n_qubits >= self.max_qubits and (service_name != 'Optimizacion_ML' and service_name != 'Optimizacion_PD'):
+        if n_qubits >= self.max_qubits and (service_name not in ['time', 'Optimizacion_ML', 'Optimizacion_PD']):
             self.services[service_name].timers[provider].execute_and_reset()
         return 'Data received', 200
         
@@ -574,14 +575,14 @@ class SchedulerPolicies:
                     if str(user) not in seleccionados_ids
             ]
 
-            if urls_for_create:
-                total_qbits = sum(item[1] for item in urls_for_create)
-                print(f"Suma total de qubits a ejecutar: {total_qbits}")
-                code, qb = [], []
-                shotsUsr = [item[2] for item in urls_for_create]
-                self.create_circuit(urls_for_create, code, qb, provider)
-                data = {"code": code}
-                Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
+            # if urls_for_create:
+            #     total_qbits = sum(item[1] for item in urls_for_create)
+            #     print(f"Suma total de qubits a ejecutar: {total_qbits}")
+            #     code, qb = [], []
+            #     shotsUsr = [item[2] for item in urls_for_create]
+            #     self.create_circuit(urls_for_create, code, qb, provider)
+            #     data = {"code": code}
+            #     Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
 
             end_time = time.process_time()
             elapsed_time = end_time - start_time

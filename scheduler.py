@@ -1,4 +1,4 @@
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 import json
 import ast
 from urllib.parse import unquote
@@ -51,8 +51,9 @@ class Scheduler:
         self.app.config['TRANSLATOR_PORT'] = os.getenv('TRANSLATOR_PORT')
         self.app.config['DB'] = os.getenv('DB')
         self.app.config['DB_PORT'] = os.getenv('DB_PORT')
+        self.app.config['LOCAL_RESULT_ENDPOINT'] = os.getenv('LOCAL_RESULT_ENDPOINT', 'http://localhost:5000')
         
-        self.max_qubits = 133
+        self.max_qubits =156 
         
         mongo_uri = f"mongodb://{self.app.config['DB']}:{self.app.config['DB_PORT']}/{os.getenv('DB_NAME')}"
         self.client = MongoClient(mongo_uri)
@@ -61,6 +62,7 @@ class Scheduler:
 
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.policy_service = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/service/"
+        self.local_result_endpoint = self.app.config['LOCAL_RESULT_ENDPOINT']
 
         self.scheduler_policies = SchedulerPolicies(self.app)
 
@@ -204,18 +206,241 @@ class Scheduler:
 
         results = divideResults(counts,shots,provider,qb,users,circuit_names)
 
+        # Forward execution results to a local consumer service.
+        self.forward_results_local(counts, shots, provider, qb, users, circuit_names, results)
+
         #Save the content of results in a file   
         for dividedResult in results:
             for key, value in dividedResult.items():
                 # Split the key into the id and the circuit name
                 id, circuit_name = key
+                sanitized_value = {}
+                for result_key, result_count in value.items():
+                    safe_key = str(result_key)
+                    if safe_key == '':
+                        safe_key = '_empty'
+                    # MongoDB field names cannot start with '$' and cannot contain '.'
+                    if safe_key.startswith('$'):
+                        safe_key = '_' + safe_key[1:]
+                    safe_key = safe_key.replace('.', '_')
+                    sanitized_value[safe_key] = result_count
                 # Create the update document
-                update = {'$inc': {'value.' + k: v for k, v in value.items()}}
+                update = {'$inc': {'value.' + k: v for k, v in sanitized_value.items()}}
                 # Upsert the document, Quitar esto
                 with self.result_lock: #In the case provider is both so the data retrieval is done after the first update finishes
                     self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
 
         return "Results stored successfully", 200  # Return a response
+
+    def schedule_from_code(self, circuit:str, provider:str, shots:int, user:int, circuit_name:str, policy:str) -> tuple:
+        """
+        Schedule a circuit execution from Python source code.
+
+        Args:
+            circuit (str): Python source code of the circuit.
+            provider (str): Provider to execute the circuit ('ibm' or 'aws').
+            shots (int): Number of shots.
+            user (int): User id associated with the request.
+            circuit_name (str): Name to identify the circuit.
+            policy (str): Scheduling policy.
+
+        Returns:
+            tuple: Response with scheduler task identification.
+        """
+        lines = circuit.split('\n')
+        importAWS = next((line for line in lines if 'braket.circuits' in line), None)
+        importIBM = next((line for line in lines if 'qiskit' in line), None)
+
+        if isinstance(provider, list):
+            provider = provider[0] if provider else 'ibm'
+        provider = provider.lower()
+
+        if provider not in ['ibm', 'aws']:
+            return "Invalid provider", 400
+
+        if provider == 'ibm':
+            if not importIBM:
+                return "Provider and circuit code do not match (IBM code expected)", 400
+
+            try:
+                circ = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
+            except (ValueError, Exception) as e:
+                return f"Invalid circuit code: {e}", 400
+            if circ is None:
+                return "Invalid circuit code", 400
+            num_qubits = circ.num_qubits
+
+            if num_qubits > self.max_qubits:
+                return "Circuit too large", 400
+
+            if self.transpilation_machine == 'local':
+                maxDepth = circ.depth()
+            else:
+                maxDepth = self.executeCircuitIBM.get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
+
+            circuit_for_queue = self.serialize_ibm_circuit_for_queue(circ)
+
+        else:
+            if not importAWS:
+                return "Provider and circuit code do not match (AWS code expected)", 400
+            try:
+                aws_circuit = code_to_circuit_aws(circuit)
+            except (ValueError, Exception) as e:
+                return f"Invalid AWS circuit code: {e}", 400
+
+            num_qubits = getattr(aws_circuit, 'qubit_count', 0)
+            if num_qubits is None or num_qubits <= 0:
+                return "Invalid AWS circuit code", 400
+            if num_qubits > self.max_qubits:
+                return "Circuit too large", 400
+
+            # Braket has no direct depth method here; use instruction count as proxy.
+            maxDepth = len(getattr(aws_circuit, 'instructions', []))
+            circuit_for_queue = self.serialize_aws_circuit_for_queue(aws_circuit)
+            if circuit_for_queue.strip() == '':
+                return "Invalid AWS circuit code", 400
+
+        self.select_policy(circuit_for_queue, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
+        return str(user), 200
+
+    def serialize_ibm_circuit_for_queue(self, circ) -> str:
+        """
+        Convert a Qiskit circuit into a canonical line-based format expected by create_circuit.
+
+        The resulting code uses qreg_q/creg_c placeholders so batch composition can
+        safely offset qubit indices when multiple circuits are merged.
+        """
+        lines = []
+        for inst in circ.data:
+            op = inst.operation
+            gate_name = op.name
+            q_indices = [circ.find_bit(q).index for q in inst.qubits]
+            c_indices = [circ.find_bit(c).index for c in inst.clbits]
+
+            if gate_name == 'measure':
+                if len(q_indices) == 1 and len(c_indices) == 1:
+                    lines.append(f"circuit.measure(qreg_q[{q_indices[0]}], creg_c[{c_indices[0]}])")
+                continue
+
+            params = []
+            for p in op.params:
+                try:
+                    params.append(str(float(p)))
+                except Exception:
+                    params.append(str(p))
+
+            args = []
+            args.extend(params)
+            args.extend([f"qreg_q[{idx}]" for idx in q_indices])
+            lines.append(f"circuit.{gate_name}({', '.join(args)})")
+
+        return '\n'.join(lines)
+
+    def serialize_aws_circuit_for_queue(self, circ) -> str:
+        """
+        Convert a Braket circuit into canonical line-based format expected by create_circuit.
+
+        The resulting code uses `circuit.<gate>(...)` so batch composition can safely
+        offset qubit indices when multiple circuits are merged.
+        """
+        lines = []
+        for ins in getattr(circ, 'instructions', []):
+            op = ins.operator
+            gate_name = getattr(op, 'name', type(op).__name__).lower()
+            q_indices = [int(q) for q in ins.target]
+
+            params = []
+            for p in getattr(op, 'parameters', []) or []:
+                try:
+                    params.append(str(float(p)))
+                except Exception:
+                    params.append(str(p))
+
+            args = []
+            args.extend([str(idx) for idx in q_indices])
+            args.extend(params)
+
+            lines.append(f"circuit.{gate_name}({', '.join(args)})")
+
+        return '\n'.join(lines)
+
+    def forward_results_local(self, counts:dict, shots:int, provider:str, qb:list, users:list, circuit_names:list, divided_results:list) -> None:
+        """
+        Forward results to a local endpoint (default: http://localhost:5000).
+
+        Args:
+            counts (dict): Raw execution counts returned by provider.
+            shots (int): Number of shots executed.
+            provider (str): Provider that executed the circuit.
+            qb (list): Number of qubits used by each subcircuit.
+            users (list): User ids associated with the execution.
+            circuit_names (list): Circuit names associated with the execution.
+            divided_results (list): Results after applying divideResults.
+        """
+        parsed_endpoint = urlparse(self.local_result_endpoint)
+        endpoints = [self.local_result_endpoint]
+        if parsed_endpoint.path in ('', '/'):
+            scheme = parsed_endpoint.scheme or 'http'
+            for fallback_path in ('/callback', '/results', '/result'):
+                fallback_endpoint = urlunparse((scheme, parsed_endpoint.netloc, fallback_path, '', '', ''))
+                if fallback_endpoint not in endpoints:
+                    endpoints.append(fallback_endpoint)
+
+        # Send one callback per circuit to match receivers that expect a single
+        # circuit_name + results payload per request.
+        for divided_result in divided_results:
+            for key, value in divided_result.items():
+                if isinstance(key, tuple) and len(key) >= 2:
+                    user_id, circuit_name = key[0], key[1]
+                else:
+                    user_id, circuit_name = None, str(key)
+
+                safe_results = {}
+                for result_key, result_count in value.items():
+                    safe_results[str(result_key)] = int(result_count)
+
+                payload = {
+                    'provider': provider,
+                    'shots': shots,
+                    'user': str(user_id) if user_id is not None else None,
+                    'circuit_name': str(circuit_name),
+                    'results': safe_results,
+                    'counts': counts,
+                    'qb': qb,
+                    'users': users,
+                    'circuit_names': circuit_names
+                }
+
+                delivered = False
+                for endpoint in endpoints:
+                    try:
+                        response = requests.post(endpoint, json=payload, timeout=5)
+                        if response.status_code < 400:
+                            delivered = True
+                            break
+
+                        # If the route does not exist, try fallback endpoints.
+                        if response.status_code == 404 and endpoint != endpoints[-1]:
+                            continue
+
+                        logging.warning(
+                            "Failed to forward results to %s. Status code: %s",
+                            endpoint,
+                            response.status_code
+                        )
+                        break
+                    except (requests.RequestException, TypeError, ValueError) as exc:
+                        if endpoint == endpoints[-1]:
+                            logging.warning(
+                                "Could not forward results to %s: %s",
+                                endpoint,
+                                exc
+                            )
+                if not delivered:
+                    logging.warning(
+                        "Result callback not delivered for circuit %s",
+                        str(circuit_name)
+                    )
 
     def store_url(self) -> tuple: # TODO instead of "both", use a list of providers as an input
         """
@@ -248,6 +473,36 @@ class Scheduler:
             policy = request.json['policy']     
 
         url =  request.json['url']
+
+        # Non-Quirk payloads can send circuit code directly or expose it on any reachable URL.
+        parsed_url = urlparse(url)
+        is_quirk_url = parsed_url.netloc == "algassert.com" and 'quirk' in parsed_url.path
+        if not is_quirk_url:
+            if request.json.get('shots') is None:
+                return "Shots must be specified", 400
+
+            shots = request.json['shots']
+            if not isinstance(shots, int) or shots <= 0 or shots > 20000:
+                return "Invalid shots value", 400
+
+            if isinstance(provider, list):
+                return "Non-Quirk URL payload supports a single provider", 400
+
+            if provider not in ['ibm', 'aws']:
+                return "Invalid provider", 400
+
+            circuit_code = request.json.get('code')
+            if circuit_code is None:
+                try:
+                    response = requests.get(url, timeout=10)
+                    response.raise_for_status()
+                    circuit_code = response.text
+                except requests.exceptions.RequestException:
+                    return "Invalid URL", 400
+
+            user = uuid.uuid4().int
+            circuit_name = request.json.get('circuit_name', url.split('/')[-1] if '/' in url else 'circuit.py')
+            return self.schedule_from_code(circuit_code, provider, shots, user, circuit_name, policy)
         
         # To handle provider if its a string
         if isinstance(provider, str):
@@ -379,6 +634,24 @@ class Scheduler:
         # with self.result_lock:
         #     self.collection.insert_one(document)
 
+        # If code is provided inline, or the URL is not from GitHub, use schedule_from_code directly.
+        parsed_url_check = urlparse(url)
+        is_github_url = parsed_url_check.netloc == "raw.githubusercontent.com"
+        circuit_code_inline = request.json.get('code')
+        provider_field = request.json.get('provider', 'ibm')
+
+        if circuit_code_inline is not None or not is_github_url:
+            circuit_code = circuit_code_inline
+            if circuit_code is None:
+                try:
+                    response = requests.get(url, timeout=10)
+                    response.raise_for_status()
+                    circuit_code = response.text
+                except requests.exceptions.RequestException:
+                    return "Invalid URL", 400
+            circuit_name = request.json.get('circuit_name', url.split('/')[-1] if '/' in url else 'circuit.py')
+            return self.schedule_from_code(circuit_code, provider_field, shots, user, circuit_name, policy)
+
         # URL is a raw GitHub url, get its content
         try:
             parsed_url = urlparse(url)
@@ -397,102 +670,12 @@ class Scheduler:
         lines = circuit.split('\n')
         importAWS = next((line for line in lines if 'braket.circuits' in line), None)
         importIBM = next((line for line in lines if 'qiskit' in line), None)
-
         if importIBM:
-            circ = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
-            # Parse the circuit and extract the number of qubits
-            num_qubits_line = next((line.split('#')[0].strip() for line in lines if '= QuantumRegister(' in line.split('#')[0]), None)
-            num_qubits = int(num_qubits_line.split('QuantumRegister(')[1].split(',')[0].strip(')')) if num_qubits_line else None
+            return self.schedule_from_code(circuit, 'ibm', shots, user, circuit_name, policy)
+        if importAWS:
+            return self.schedule_from_code(circuit, 'aws', shots, user, circuit_name, policy)
 
-            if num_qubits > self.max_qubits:
-                return "Circuit too large", 400
-
-            # Get the data before the = in the line that appears QuantumCircuit(...)
-            file_circuit_name_line = next((line.split('#')[0].strip() for line in lines if '= QuantumCircuit(' in line.split('#')[0]), None)
-            file_circuit_name = file_circuit_name_line.split('=')[0].strip() if file_circuit_name_line else None
-
-            # Get the name of the quantum register
-            qreg_line = next((line.split('#')[0].strip() for line in lines if '= QuantumRegister(' in line.split('#')[0]), None)
-            qreg = qreg_line.split('=')[0].strip() if qreg_line else None
-            # Get the name of the classical register
-            creg_line = next((line.split('#')[0].strip() for line in lines if '= ClassicalRegister(' in line.split('#')[0]), None)
-            creg = creg_line.split('=')[0].strip() if creg_line else None
-
-
-            # Remove all lines that don't start with file_circuit_name and don't include the line that has file_circuit_name.add_register and line not starts with // or # (comments)
-            circuit_lines = [line.split('#')[0].strip() for line in lines if line.split('#')[0].strip().startswith(file_circuit_name+'.') and 'add_register' not in line]
-            circuit = '\n'.join(circuit_lines)
-            
-            
-            # Replace all appearances of file_circuit_name, qreg, and creg
-            circuit = circuit.replace(file_circuit_name+'.', 'circuit.')
-            circuit = circuit.replace(f'{qreg}[', 'qreg_q[')
-            circuit = circuit.replace(f'{creg}[', 'creg_c[')
-
-            # Create an array with the same length as the number of qubits initialized to 0 to count the number of gates on each qubit
-            qubits = [0] * num_qubits
-            for line in circuit.split('\n'): # For each line in the circuit
-                if 'measure' not in line and 'barrier' not in line: #If the line is not a measure or a barrier
-                    # Check the numbers after qreg_q and add 1 to qubits on that position. It should work with whings like circuit.cx(qreg_q[0], qreg_q[3]), adding 1 to both 0 and 3
-                    # This adds 1 to the number of gates used on that qubit
-                    for match in re.finditer(r'qreg_q\[(\d+)\]', line):
-                        qubits[int(match.group(1))] += 1
-            if self.transpilation_machine == 'local':   
-                maxDepth = max(qubits) #Get the max number of gates on a qubit
-            else:
-                maxDepth = self.executeCircuitIBM.get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
-            provider = 'ibm'
-        
-        elif importAWS:
-            #circ = code_to_circuit_aws(circuit)
-            file_circuit_name_line = next((line.split('#')[0].strip() for line in lines if '= Circuit(' in line.split('#')[0]), None)
-            file_circuit_name = file_circuit_name_line.split('=')[0].strip() if file_circuit_name_line else None
-
-            # Remove all lines that don't start with file_circuit_name and don't include the line that has file_circuit_name.add_register and line not starts with // or # (comments)
-            circuit_lines = [line.split('#')[0].strip() for line in lines if line.split('#')[0].strip().startswith(file_circuit_name+'.') and 'add_register' not in line]
-            circuit = '\n'.join(circuit_lines)
-
-            circuit = circuit.replace(file_circuit_name+'.', 'circuit.')
-            # Remove tabs and spaces at the beginning of the lines
-            circuit = '\n'.join([line.lstrip() for line in circuit.split('\n')])
-
-            # Create an array with the same length as the number of qubits initialized to 0 to count the number of gates on each qubit
-            qubits = {}
-            for line in circuit.split('\n'): # For each line in the circuit
-                if 'barrier' not in line and 'circuit.' in line: #If the line is not a measure or a barrier
-                    #Get the gate_name, which is the thing after circuit. and before (
-                    gate_name = re.search(r'circuit\.(.*?)\(', line).group(1)
-                    if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']: # Because different gates have different number of parameters and in braket circuits there is no visual difference between a qubit and a parameter
-                        # These gates have a parameter
-                        numbers_retrieved = re.findall(r'\d+', line)
-                        numbers = numbers_retrieved[0] if numbers_retrieved else None
-                        
-                    elif gate_name in ['xx', 'yy', 'zz', 'ms'] or 'cphase' in gate_name:
-                        # These gates have 2 or more parameters
-                        numbers_retrieved = re.findall(r'\d+', line)
-                        numbers = numbers[:2] if numbers_retrieved else None  
-                        
-                    else:
-                        # These gates have no parameters
-                        numbers = re.findall(r'\d+', line)
-                    
-                    for elem in numbers:
-                        if elem not in qubits:
-                            qubits[elem] = 0
-                        else:
-                            qubits[elem] += 1
-            if self.transpilation_machine == 'local':   
-                maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
-            else:
-                # TODO
-                maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
-            # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
-            num_qubits = len(qubits.values())
-            provider = 'aws'
-
-        self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
-
-        return str(user), 200
+        return "Invalid circuit code", 400
 
     
     def sendResults(self) -> tuple:

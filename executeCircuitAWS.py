@@ -12,6 +12,7 @@ from braket.aws.aws_quantum_task import AwsQuantumTask
 from typing import Optional
 import braket
 import numpy as np
+import re
 
 def code_to_circuit_aws(code_str:str) -> braket.circuits.circuit.Circuit: #Inverse parser to get the circuit object from the string
     """
@@ -23,32 +24,37 @@ def code_to_circuit_aws(code_str:str) -> braket.circuits.circuit.Circuit: #Inver
     Returns:
         braket.circuits.circuit.Circuit: The circuit object.
     """
-    # Split the code into lines
     try:
         lines = code_str.strip().split('\n')
-        # Initialize the circuit
         circuit = braket.circuits.Circuit()
         safe_namespace = {'np': np, 'pi': np.pi}
-        # Process each line
+
+        # Detect the variable name used for the Braket circuit, default to 'circuit'.
+        circuit_var = 'circuit'
         for line in lines:
-            if line.startswith("circuit."):
-                # Parse gate operations
-                operation = line.split('circuit.')[1]
+            stripped = line.split('#')[0].strip()
+            m = re.match(r'^(\w+)\s*=\s*Circuit\s*\(', stripped)
+            if m:
+                circuit_var = m.group(1)
+                break
+
+        for line in lines:
+            stripped = line.split('#')[0].strip()
+            prefix = f"{circuit_var}."
+            if stripped.startswith(prefix):
+                operation = stripped.split(prefix, 1)[1]
                 gate_name = operation.split('(')[0]
                 if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
-                    # These gates have a parameter
                     args = operation.split('(')[1].strip(')').split(',')
                     target_qubit = int(args[0].split('+')[0]) + int(args[0].split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].strip(') ').strip())
                     angle = eval(args[1], {"__builtins__": None}, safe_namespace)
                     getattr(circuit, gate_name)(target_qubit, angle)
                 elif gate_name in ['xx', 'yy', 'zz'] or 'cphase' in gate_name:
-                    # These gates have 2 parameters
                     args = operation.split('(')[1].strip(')').split(',')
                     target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-1]]
                     angle = eval(args[-1], {"__builtins__": None}, safe_namespace)
                     getattr(circuit, gate_name)(*target_qubits, angle)
                 elif gate_name == 'ms':
-                    # These gates have multiple parameters (3)
                     args = operation.split('(')[1].strip(')').split(',')
                     target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-3]]
                     angles = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args[-3:]]

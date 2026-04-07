@@ -51,6 +51,39 @@ class executeCircuitIBM:
         backend = service.backend(machine)
         return backend
 
+    def _extract_counts_from_result(self, result) -> dict:
+        """
+        Extract counts from IBM runtime results without assuming a fixed classical register name.
+
+        Args:
+            result: Result object returned by Qiskit backend or runtime.
+
+        Returns:
+            dict: Measurement counts.
+        """
+        if hasattr(result, 'get_counts'):
+            return result.get_counts()
+
+        pub_result = result[0]
+        data = getattr(pub_result, 'data', None)
+        if data is None:
+            raise ValueError('IBM result does not contain data payload')
+
+        if hasattr(data, 'keys'):
+            for key in data.keys():
+                register_data = getattr(data, key, None)
+                if register_data is not None and hasattr(register_data, 'get_counts'):
+                    return register_data.get_counts()
+
+        for attr_name in dir(data):
+            if attr_name.startswith('_'):
+                continue
+            register_data = getattr(data, attr_name, None)
+            if register_data is not None and hasattr(register_data, 'get_counts'):
+                return register_data.get_counts()
+
+        raise ValueError('Could not extract counts from IBM result')
+
 
     def code_to_circuit_ibm(self, code_str:str) -> qiskit.QuantumCircuit: #Inverse parser to get the circuit object from the string
         """
@@ -64,6 +97,16 @@ class executeCircuitIBM:
         """
         # Split the code into lines
         try:
+            # QASM-embedded circuit: detect and parse directly
+            qasm_match = re.search(r'"""(OPENQASM[\s\S]*?)"""', code_str) or re.search(r"'''(OPENQASM[\s\S]*?)'''", code_str)
+            if qasm_match:
+                qasm_str = qasm_match.group(1).strip()
+                try:
+                    return QuantumCircuit.from_qasm_str(qasm_str)
+                except AttributeError:
+                    from qiskit import qasm2 as _qasm2
+                    return _qasm2.loads(qasm_str)
+
             lines = code_str.strip().split('\n')
             # Initialize empty variables for registers and circuit
             qreg = creg = circuit = None
@@ -198,10 +241,10 @@ class executeCircuitIBM:
         service = self.service
         job = service.job(id)
         result = job.result()
-        counts = result[0].data.creg_c.get_counts()
+        counts = self._extract_counts_from_result(result)
         return counts
 
-    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
+    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list, layout_fisico=None) -> dict:
         """
         Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
 
@@ -232,7 +275,10 @@ class executeCircuitIBM:
             sampler = Sampler(mode=backend)
             #sampler.options.execution.rep_delay = 0.5 # set it to the maximum of the machine instead -> config.rep_delay_range[1]
             with self.transpile_lock:
-                qc_basis = transpile(circuit, backend=backend)
+                if layout_fisico is not None:
+                    qc_basis = transpile(circuit, backend=backend, initial_layout=layout_fisico)
+                else:
+                    qc_basis = transpile(circuit, backend=backend)
             x = int(shots)
 
             while True:
@@ -258,7 +304,7 @@ class executeCircuitIBM:
             # -----------------------------------------------------#
 
             result = job.result()
-            counts = result[0].data.creg_c.get_counts()
+            counts = self._extract_counts_from_result(result)
 
             with self.condition:
                 self.queued_jobs -= 1
