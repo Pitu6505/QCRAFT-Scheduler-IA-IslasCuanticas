@@ -14,9 +14,7 @@ MAX_NOISE_THRESHOLD = 312.15 #0.05575   # Ajustado para máquinas no-Brisbane (e
 Porcentaje_util = 90  # Porcentaje de qubits a utilizar según el umbral dinámico, valor entre 0 y 100
 
 #Configuracion de la particiones del grafo 
-USE_PARTITION = False       # True para activar particionado
-PARTITIONS = 4             # número de particiones si se usa particionado uniforme
-PARTITION_INDEX = 1        # índice para ver en que partición estamos (1-based), si queremos moverlo debemos de aumentarlo en 1 hasta el maximo de particiones que haya
-# Ejemplo de ranges personalizados (opcional). Cada tupla es (start, end) inclusive.
-# Si lo defines, se usa esta lista y se ignora PARTITIONS.
+USE_PARTITION = False       
+PARTITIONS = 4           
+PARTITION_INDEX = 1        
 PARTITION_RANGES = None

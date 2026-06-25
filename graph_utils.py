@@ -19,7 +19,7 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
 
     total_qubits = len(properties.get('qubits', []))
     
-    print(f"🔧 Construyendo grafo: total_qubits en properties = {total_qubits}")
+    print(f"Construyendo grafo: total_qubits en properties = {total_qubits}")
 
     # Determinar el conjunto de nodos a incluir
     if partition_mode:
@@ -44,12 +44,9 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
     else:
         node_set = set(range(total_qubits))
 
-    # Añadir nodos con ruido (solo los de node_set)
     for i, qubit_props in enumerate(properties.get('qubits', [])):
         if i not in node_set:
             continue
-        # 🔑 Validar que el qubit tenga propiedades válidas (no sea None o dummy)
-        # Esto evita añadir qubits que no existen (como 42 y 48 en Ankaa-3)
         if qubit_props is None:
             continue
         try:
@@ -57,7 +54,6 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
             t2 = qubit_props[1]['value']
             readout_error = qubit_props[5]['value']
             
-            # Si T1 o T2 son exactamente 0, este qubit no existe realmente
             if t1 == 0.0 or t2 == 0.0:
                 continue
 
@@ -74,8 +70,7 @@ def build_graph(coupling_map, properties, partition_mode=False, partition_index=
         except (IndexError, KeyError, ZeroDivisionError):
             G.add_node(i, noise=float('inf'))
 
-    # Añadir aristas solo si ambos extremos están en la partición Y en el grafo
-    # (para evitar crear nodos sin propiedades)
+
     for q1, q2 in coupling_map:
         if q1 in node_set and q2 in node_set and q1 in G.nodes and q2 in G.nodes:
             G.add_edge(q1, q2)

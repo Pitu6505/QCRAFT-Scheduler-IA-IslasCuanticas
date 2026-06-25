@@ -11,9 +11,6 @@ import torch.utils.data
 from config import CAPACIDAD_MAXIMA, MAX_ITEMS, NUM_SAMPLES, FORCE_THRESHOLD
 
 
-#################################
-# 1. Función para generar elementos de la cola
-#################################
 def generar_cola(num_elementos):
     """
     Genera una cola de elementos.
@@ -37,9 +34,6 @@ def generar_cola(num_elementos):
         cola.append((identificador, valor, count))
     return cola
 
-#################################
-# 2. Función target (greedy) usando contador de iteraciones
-#################################
 def optimizar_espacio_target(queue, capacidad, forced_threshold=FORCE_THRESHOLD):
     """
     Dada una cola (lista de tuplas (id, valor, count)) y la capacidad,
@@ -83,9 +77,6 @@ def optimizar_espacio_target(queue, capacidad, forced_threshold=FORCE_THRESHOLD)
 
     return seleccionados
 
-#################################
-# 3. Definición del modelo de red neuronal
-#################################
 class SeleccionadorNN(nn.Module):
     def __init__(self, input_dim=2, hidden_dim=16):
         """
@@ -109,9 +100,6 @@ class SeleccionadorNN(nn.Module):
         x = x.view(batch_size, num_items)  # Volver a la forma (batch, num_items)
         return x
 
-#################################
-# 4. Generación de datos de entrenamiento
-#################################
 class ColaDataset(torch.utils.data.Dataset):
     def __init__(self, num_samples=NUM_SAMPLES, max_items=MAX_ITEMS, capacidad=CAPACIDAD_MAXIMA, forced_threshold=FORCE_THRESHOLD):
         self.num_samples = num_samples
@@ -152,9 +140,6 @@ class ColaDataset(torch.utils.data.Dataset):
         return (torch.tensor(features, dtype=torch.float32),
                 torch.tensor(target, dtype=torch.float32))
 
-#################################
-# 5. Función de entrenamiento del modelo
-#################################
 def train_model(model, dataset, num_epochs=30, batch_size=32, learning_rate=0.001):
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
     criterion = nn.BCELoss()  # Pérdida binaria para clasificación por elemento
@@ -172,9 +157,6 @@ def train_model(model, dataset, num_epochs=30, batch_size=32, learning_rate=0.00
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss / len(dataset):.4f}")
     return model
 
-#################################
-# 6. Función knapsack con bonus (para elementos restantes)
-#################################
 def knapsack_with_bonus(items, capacity):
     """
     Resuelve el problema de la mochila 0/1 para un conjunto de ítems.
@@ -202,9 +184,6 @@ def knapsack_with_bonus(items, capacity):
     selected.reverse()
     return selected, dp[n][capacity]
 
-#################################
-# 7. Función para optimizar la cola usando el modelo entrenado (con knapsack y bonus)
-#################################
 def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHOLD, alpha=1.0, lambda_penalty=0.5):
     """
     Procesa la cola usando el modelo entrenado combinando:
@@ -221,9 +200,6 @@ def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHO
     capacidad_restante = capacidad
     forced_indices = []
 
-    #print("\n🔹 Estado inicial de la cola:", queue)
-
-    # 1. Selección forzada
     for idx, (ident, valor, count) in enumerate(queue):
         if count >= forced_threshold:
             if valor <= capacidad_restante:
@@ -231,17 +207,12 @@ def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHO
                 capacidad_restante -= valor
                 forced_indices.append(idx)
 
-    #print(f"✅ Elementos en prioridad seleccionados: {seleccionados}")
-    #print(f"⚡ Capacidad restante después de prioridad: {capacidad_restante}")
-
     # 2. Elementos restantes (no forzados)
     queue_restante = [item for idx, item in enumerate(queue) if idx not in forced_indices]
 
-    # **Corrección**: Verificar correctamente si no hay seleccionados para aplicar solo knapsack
     if not seleccionados:
-        print("📌 No hay elementos en prioridad, aplicando solo knapsack.")
+        print(" No hay elementos en prioridad, aplicando solo knapsack.")
 
-    # Preparar características para el modelo ML (valor y count normalizados)
     features = [[valor / float(capacidad), count / float(forced_threshold)] for (ident, valor, count) in queue_restante]
 
     if features:
@@ -252,7 +223,6 @@ def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHO
     else:
         probs = []
 
-    #print(f"🔍 Probabilidades asignadas por el modelo: {probs}")
 
     # Ajustar bonus si hay muchos elementos de alta prioridad
     num_high_priority = sum(1 for ident, valor, count in queue_restante if count >= forced_threshold)
@@ -265,14 +235,12 @@ def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHO
         profit = valor * (1 + alpha * prob) * (count / penalty_factor)
         remaining_items.append((ident, valor, count, profit))
 
-    # **Corrección**: Verificar si la lista `remaining_items` no está vacía antes de aplicar knapsack
     if not remaining_items:
-        print("⚠️ No hay elementos disponibles para la mochila. Se seleccionará el de mayor valor.")
+        print(" No hay elementos disponibles para la mochila. Se seleccionará el de mayor valor.")
         if queue:
             best_element = max(queue, key=lambda x: x[1])  # Seleccionar el de mayor valor
             remaining_items.append((best_element[0], best_element[1], best_element[2], best_element[1]))
 
-    #print(f"🎯 Elementos enviados al knapsack: {remaining_items}")
     
     # 3. Aplicar knapsack para los elementos restantes
     selected_knapsack, _ = knapsack_with_bonus(remaining_items, capacidad_restante)
@@ -286,14 +254,8 @@ def optimizar_espacio_ml(model, queue, capacidad, forced_threshold=FORCE_THRESHO
     seleccionados_ids = {ident for (ident, valor, count) in seleccionados}
     nueva_cola = [item for item in queue if item[0] not in seleccionados_ids]
 
-    #print(f"✅ Elementos seleccionados después del knapsack: {seleccionados}")
-    #print(f"🆕 Cola restante después de optimización: {nueva_cola}")
-
     return seleccionados, total_valor, nueva_cola
 
-#################################
-# 8. Función interactiva para procesar la cola con ML
-#################################
 def procesar_cola_ml(cola, capacidad, model, forced_threshold=FORCE_THRESHOLD, alpha=1.0):
     """
     Procesa la cola de forma interactiva. El formato es:
@@ -307,13 +269,11 @@ def procesar_cola_ml(cola, capacidad, model, forced_threshold=FORCE_THRESHOLD, a
       - Se muestra el estado de la cola (se muestran los identificadores, valor y count).
       - Se procesa la cola usando optimizar_espacio_ml.
     """
-    iter_global = 0  # Contador global de iteraciones
+    iter_global = 0  
 
-    # Preguntar al usuario la opción de procesamiento:
     num_iteraciones = int(input("¿Cuántas veces deseas procesar la cola? (0 para vaciarla automáticamente): "))
 
     if num_iteraciones == 0:
-        # Modo vaciado automático: se procesan iteraciones hasta que la cola esté vacía.
         while cola:
             # Incrementar count en cada elemento
             cola = deque([(ident, valor, count + 1) for (ident, valor, count) in cola])
@@ -388,9 +348,7 @@ def cargar_metadata(metadata_path="Machine_Learnig/metadata.txt"):
                 return None
     return None
 
-#################################
-# 9. Programa principal: Entrenamiento y procesamiento de la cola
-#################################
+
 if __name__ == "__main__":
     start_time = time.perf_counter()
 
@@ -402,9 +360,7 @@ if __name__ == "__main__":
     MODEL_PATH = "Machine_Learnig/modelo_entrenado.pth"
     METADATA_PATH = "Machine_Learnig/metadata.txt"
 
-    # Cargar la capacidad con la que se entrenó el modelo previamente
     capacidad_entrenada = cargar_metadata(METADATA_PATH)
-    # Solo se reentrena si el modelo no existe, o si la diferencia entre la capacidad actual y la entrenada es >= 50.
     if os.path.exists(MODEL_PATH) and capacidad_entrenada is not None and abs(CAPACIDAD_MAXIMA - capacidad_entrenada) < 1000:
         print("Cargando modelo entrenado...")
         model.load_state_dict(torch.load(MODEL_PATH))
@@ -415,11 +371,9 @@ if __name__ == "__main__":
         torch.save(model.state_dict(), MODEL_PATH)
         guardar_metadata(CAPACIDAD_MAXIMA, METADATA_PATH)
 
-    # Generar la cola inicial (por ejemplo, 20 elementos)
-    # print("\nGenerando cola inicial...")
+
     cola = generar_cola(1)
 
-    # Procesar la cola usando el modelo entrenado
     print("\nProcesando cola usando el modelo de Machine Learning...")
     procesar_cola_ml(cola, CAPACIDAD_MAXIMA, model, forced_threshold=FORCE_THRESHOLD, alpha=1.0)
 

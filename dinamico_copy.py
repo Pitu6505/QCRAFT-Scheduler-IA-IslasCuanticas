@@ -6,12 +6,7 @@ import sys
 from collections import deque
 from config import CAPACIDAD_MAXIMA, MAX_ITEMS, NUM_SAMPLES, FORCE_THRESHOLD
 
-# Aumentamos el límite de recursión (aunque en DP iterativo no se use recursividad profunda)
 sys.setrecursionlimit(10000)
-
-#################################
-# 1. Función para generar elementos de la cola
-#################################
 def generar_cola(num_elementos):
     """
     Genera una cola de elementos.
@@ -32,9 +27,6 @@ def generar_cola(num_elementos):
         cola.append((identificador, valor, count))
     return cola
 
-#################################
-# 2. Función iterativa tipo Knapsack (programación dinámica)
-#################################
 def iterative_knapsack(items, capacity):
     """
     Resuelve el problema de la mochila 0/1 usando programación dinámica iterativa.
@@ -67,9 +59,6 @@ def iterative_knapsack(items, capacity):
     selected.reverse()
     return dp[n][capacity], selected
 
-#################################
-# 3. Función de optimización usando programación dinámica
-#################################
 def optimizar_espacio_dinamico(queue, capacidad, forced_threshold=FORCE_THRESHOLD):
     """
     Optimiza la selección de elementos de la cola utilizando:
@@ -108,9 +97,6 @@ def optimizar_espacio_dinamico(queue, capacidad, forced_threshold=FORCE_THRESHOL
     
     return selected, total_valor, nueva_cola
 
-#################################
-# 4. Función interactiva para procesar la cola usando DP iterativo
-#################################
 def procesar_cola_dinamico(cola, capacidad, forced_threshold=FORCE_THRESHOLD):
     """
     Procesa la cola de forma interactiva utilizando programación dinámica.
@@ -161,14 +147,6 @@ def procesar_cola_dinamico(cola, capacidad, forced_threshold=FORCE_THRESHOLD):
                 ident, valor, count = item
                 print(f"  Elemento {ident}: Valor = {valor}, Iteraciones = {count}")
             
-            # En modo iterativo, se puede decidir no añadir elementos automáticamente,
-            # pero si se desea, se puede incorporar la misma línea que en el modo 0.
-            # Por ejemplo, descomenta las siguientes líneas para inyectar nuevos elementos:
-            # print("\n--- Se añaden 3 nuevos elementos a la cola automáticamente ---")
-            # nuevos_elementos = generar_cola(3)
-            # for elem in nuevos_elementos:
-            #     cola.append(elem)
-            
             selected, total_valor, nueva_cola = optimizar_espacio_dinamico(list(cola), capacidad, forced_threshold)
             print(f"\nProcesando cola en iteración {iter_global}:")
             print(f"  Cola actual (IDs): {[item[0] for item in nueva_cola]}")
@@ -188,9 +166,6 @@ def procesar_cola_dinamico(cola, capacidad, forced_threshold=FORCE_THRESHOLD):
                         print(f"Error al procesar '{par}': {e}")
             procesar_cola_dinamico(cola, capacidad, forced_threshold)
 
-#################################
-# Programa principal
-#################################
 if __name__ == "__main__":
 
     start_time = time.perf_counter()

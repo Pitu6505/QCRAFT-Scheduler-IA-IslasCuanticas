@@ -180,9 +180,8 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
         
     device = AwsDevice(machine)
 
-    # 🔑 Si se proporciona un layout, se "vincula" el circuito a los qubits físicos
     if layout_fisico:
-        print(f"🟦 Usando layout físico para AWS:")
+        print(f"   Usando layout físico para AWS:")
         print(f"   Layout: {layout_fisico}")
         print(f"   Longitud del layout: {len(layout_fisico)}")
         print(f"   Circuito original usa {circuit.qubit_count} qubits lógicos (0-{circuit.qubit_count-1})")
@@ -191,12 +190,12 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
         
         # Validar que el layout tenga el mismo número de qubits que el circuito
         if len(layout_fisico) != circuit.qubit_count:
-            print(f"⚠️ Layout inválido: {len(layout_fisico)} qubits en layout, pero el circuito tiene {circuit.qubit_count}")
+            print(f" Layout inválido: {len(layout_fisico)} qubits en layout, pero el circuito tiene {circuit.qubit_count}")
             circuit_to_run = circuit
         else:
             # Validar que no haya índices duplicados en el layout
             if len(set(layout_fisico)) != len(layout_fisico):
-                print(f"⚠️ Layout tiene qubits duplicados, usando circuito sin mapeo")
+                print(f" Layout tiene qubits duplicados, usando circuito sin mapeo")
                 circuit_to_run = circuit
             else:
                 # Crear mapeo: qubit lógico i -> qubit físico layout_fisico[i]
@@ -205,9 +204,9 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
                     mapped_circuit = Circuit()
                     mapped_circuit.add_circuit(circuit, target=layout_fisico)
                     circuit_to_run = mapped_circuit
-                    print(f"✅ Circuito mapeado correctamente, usa {circuit_to_run.qubit_count} qubits físicos")
+                    print(f" Circuito mapeado correctamente, usa {circuit_to_run.qubit_count} qubits físicos")
                 except Exception as e:
-                    print(f"⚠️ Error al mapear circuito: {e}")
+                    print(f" Error al mapear circuito: {e}")
                     circuit_to_run = circuit
     else:
         circuit_to_run = circuit
@@ -220,7 +219,7 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
         task = device.run(circuit_to_run, s3_folder, shots=x, poll_timeout_seconds=5 * 24 * 60 * 60) # Hacer lo mismo que con ibm para recuperar los resultados, guardar el id, usuarios... y despues en el scheduler, al iniciarlo, buscar el el bucket s3 si están los resultados, si no, esperar a que lleguen
 
         #------------------------#
-        id = task.id  # 🔑 Obtener el ID de la tarea como string
+        id = task.id  
         user_shots = [shots] * len(circuit_names)
         provider = 'aws'
         script_dir = os.path.dirname(os.path.realpath(__file__))
