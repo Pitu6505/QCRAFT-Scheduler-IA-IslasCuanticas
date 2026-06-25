@@ -135,7 +135,10 @@ class executeCircuitIBM:
         service = self.service
         job = service.job(id)
         result = job.result()
-        counts = result[0].data.creg_c.get_counts()
+        # counts = result[0].data.creg_c.get_counts()
+        data_bin = result[0].data
+        creg_name = [k for k in dir(data_bin) if not k.startswith('_')][0]
+        counts = getattr(data_bin, creg_name).get_counts()
         return counts
 
     def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
@@ -195,7 +198,9 @@ class executeCircuitIBM:
             # -----------------------------------------------------#
 
             result = job.result()
-            counts = result[0].data.creg_c.get_counts()
+            # counts = result[0].data.creg_c.get_counts()
+            creg_name = qc_basis.cregs[0].name
+            counts = getattr(result[0].data, creg_name).get_counts()
 
             with self.condition:
                 self.queued_jobs -= 1

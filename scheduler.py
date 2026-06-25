@@ -400,12 +400,14 @@ class Scheduler:
             match = re.search(r'qubit\[(\d+)\]', circuit)
             num_qubits = int(match.group(1)) if match else self.max_qubits
             maxDepth = len(circuit.split('\n')) # Estimación rápida
+
+            provider = 'ibm'
             
             # Lo enviamos directamente a la política saltando todo lo demás
             self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
             return str(user), 200
         # ---------------------------------------
-        
+
         # Split the circuit string into lines once
         lines = circuit.split('\n')
         importAWS = next((line for line in lines if 'braket.circuits' in line), None)

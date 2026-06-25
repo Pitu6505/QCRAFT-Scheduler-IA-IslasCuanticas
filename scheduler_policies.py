@@ -1029,7 +1029,7 @@ class SchedulerPolicies:
             data = {"code":code}
 
             
-            # Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
+            Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
 
             end_time = time.process_time()  # Finalizar el timer
             elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido
@@ -1044,7 +1044,6 @@ class SchedulerPolicies:
                 file.write("\n")
 
 
-            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['time'].timers[provider].reset()
 
     
