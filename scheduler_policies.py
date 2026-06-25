@@ -103,7 +103,7 @@ class SchedulerPolicies:
         """
         self.app = app
         self.time_limit_seconds = 10
-        self.max_qubits = 133
+        self.max_qubits = 156
         self.forced_threshold = 12
         self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
@@ -315,6 +315,7 @@ class SchedulerPolicies:
 
     def create_circuit(self, urls: list, code: list, qb: list, provider: str) -> None:
         composition_qubits = 0
+        es_qasm3 = False # NUEVA BANDERA
         for entry in urls:
             # aceptar tuplas de 6 o 7 elementos
             if len(entry) == 7:
@@ -324,6 +325,16 @@ class SchedulerPolicies:
                 iterator = None
             else:
                 raise ValueError(f"Cada elemento de 'urls' debe tener 6 o 7 campos; recibido {len(entry)}: {entry}")
+            
+            # Nuevo 
+            if "OPENQASM 3.0" in url:
+                es_qasm3 = True
+                code.append(url)  # Agregar el código QASM3 directamente
+                composition_qubits += int(num_qubits)
+                qb.append(int(num_qubits))
+                continue
+            # ---------------------------------------
+
 
             # (el resto de tu código permanece igual, usando 'url', 'num_qubits', etc.)
             if 'algassert' in url:
@@ -354,7 +365,7 @@ class SchedulerPolicies:
             composition_qubits += int(num_qubits)
             qb.append(int(num_qubits))
 
-        if provider == 'ibm':
+        if provider == 'ibm' and not es_qasm3:  # Solo insertar si no es QASM3
             # Add at the first position of the code[]
             code.insert(0,"circuit = QuantumCircuit(qreg_q, creg_c)")
             code.insert(0, f"creg_c = ClassicalRegister({composition_qubits}, 'c')")  # Set composition_qubits as the number of classical bits
@@ -1018,7 +1029,7 @@ class SchedulerPolicies:
             data = {"code":code}
 
             
-            Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
+            # Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
 
             end_time = time.process_time()  # Finalizar el timer
             elapsed_time = end_time - start_time  # Calcular el tiempo transcurrido

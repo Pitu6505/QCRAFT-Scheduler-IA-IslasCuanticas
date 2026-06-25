@@ -8,12 +8,14 @@ from qiskit_ibm_runtime import SamplerV2 as Sampler, QiskitRuntimeService
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import MCXGate
 from qiskit_aer import AerSimulator
+import qiskit.qasm3
 import json
 import os
 import qiskit
 import numpy as np
 import re
 import threading
+
 
 class executeCircuitIBM:
     def __init__(self):
@@ -54,83 +56,18 @@ class executeCircuitIBM:
 
     def code_to_circuit_ibm(self, code_str:str) -> qiskit.QuantumCircuit: #Inverse parser to get the circuit object from the string
         """
-        Transforms a string representation of a circuit into a Qiskit circuit
-
-        Args:
-            code_str (str): The string representation of the Qiskit circuit.
-
-        Returns:
-            qiskit.QuantumCircuit: The circuit object.
+        Transforms a string representation (OpenQASM 3.0) of a circuit into a Qiskit circuit
+        utilizando el parser nativo de Qiskit.
         """
-        # Split the code into lines
         try:
-            lines = code_str.strip().split('\n')
-            # Initialize empty variables for registers and circuit
-            qreg = creg = circuit = None
-            # Process each line
-            for line in lines:
-                if 'import' not in line:
-                    if "QuantumRegister" in line:
-                        qreg_name = line.split('=')[0].strip()
-                        num_qubits = int(line.split('(')[1].split(')')[0].split(',')[0].strip())
-                        qreg = qiskit.QuantumRegister(num_qubits, qreg_name)
-                    elif "ClassicalRegister" in line:
-                        creg_name = line.split('=')[0].strip()
-                        num_clbits = int(line.split('(')[1].split(')')[0].split(',')[0].strip())
-                        creg = qiskit.ClassicalRegister(num_clbits, creg_name)
-                    elif "QuantumCircuit" in line:
-                        circuit = qiskit.QuantumCircuit(qreg, creg)
-                    elif "circuit." in line:
-                        if ".c_if(" in line:
-                            operation, condition = line.split('.c_if(')
-                        else:
-                            operation = line
-                            condition = None
-                        # Parse gate operations
-                        gate_name = operation.split('circuit.')[1].split('(')[0]
-                        args = re.split(r'\s*,\s*', operation.split('(', 1)[1].rsplit(')', 1)[0].strip())
-                        if gate_name == "measure":
-                            qubit = qreg[int(args[0].split('[')[1].strip(']').split('+')[0]) + int(args[0].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].split('[')[1].strip(']'))]
-                            cbit = creg[int(args[1].split('[')[1].strip(']').split('+')[0]) + int(args[1].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[1] else int(args[1].split('[')[1].strip(']'))]
-                            circuit.measure(qubit, cbit)
-                        elif gate_name == "barrier":
-                            if args[0] == '': #For barrier()
-                                circuit.barrier()
-                            elif args[0] == qreg.name: #For barrier(qreg)
-                                circuit.barrier(*qreg)
-                            else: #For barrier(qreg[0], qreg[1], ...)
-                                qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
-                                circuit.barrier(qubits)
-                        elif gate_name == "append":
-                            gate_type = args[0]
-                            qubits = [qreg[int(re.search(r'\[(\d+)\]', arg).group(1))] for arg in args[1:] if '[' in arg]
-                            control_qubits = qubits[:-1]
-                            target_qubit = qubits[-1]
-                            if gate_type == 'mc_x_gate':
-                                mcx = MCXGate(len(control_qubits))
-                                circuit.append(mcx, control_qubits + [target_qubit])
-                            elif gate_type == 'mc_y_gate':
-                                circuit.sdg(target_qubit)
-                                mcx = MCXGate(len(control_qubits))
-                                circuit.append(mcx, control_qubits + [target_qubit])
-                                circuit.s(target_qubit)
-                            elif gate_type == 'mc_z_gate':
-                                circuit.h(target_qubit)
-                                mcx = MCXGate(len(control_qubits))
-                                circuit.append(mcx, control_qubits + [target_qubit])
-                                circuit.h(target_qubit)
-                        else:
-                            qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
-                            params = [eval(arg, {"__builtins__": None, "np": np}, {}) for param_str in args if '[' not in param_str for arg in param_str.split(',')] #If here, check if the circuit has pi instead of np.pi. Change pi to np.pi and it should work
-                            gate_operation = getattr(circuit, gate_name)(*params, *qubits) if params else getattr(circuit, gate_name)(*qubits)
-                            if condition:
-                                creg_name, val = condition.split(')')[0].split(',')
-                                val = int(val.strip())
-                                gate_operation.c_if(creg, val)
+            # Cargamos directamente el string en formato OpenQASM 3.0
+            circuit = qiskit.qasm3.loads(code_str)
+            print(f"✅ Circuito cargado correctamente desde OpenQASM 3.0: {circuit}")
+            return circuit
+            
         except Exception as e:
-            raise ValueError("Invalid circuit code")
-
-        return circuit
+            print(f"❌ Error al cargar OpenQASM 3.0: {e}")
+            raise ValueError(f"Invalid circuit code (OpenQASM 3 expected): {e}")
 
 
     def get_transpiled_circuit_depth_ibm(self, circuit:QuantumCircuit, backend:qiskit.providers.BackendV2) -> int:
