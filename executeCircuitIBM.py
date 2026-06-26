@@ -83,7 +83,7 @@ class executeCircuitIBM:
         """
         # Load your IBM Quantum account
         with self.transpile_lock:
-            qc_basis = transpile(circuit, backend=backend)
+            qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
 
         return qc_basis.depth()
 
