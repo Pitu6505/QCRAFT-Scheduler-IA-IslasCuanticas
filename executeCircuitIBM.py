@@ -83,7 +83,7 @@ class executeCircuitIBM:
         """
         # Load your IBM Quantum account
         with self.transpile_lock:
-            qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
+            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
 
         return qc_basis.depth()
 
@@ -114,7 +114,7 @@ class executeCircuitIBM:
 
             service = self.service
             backend = service.backend(machine)
-            qc_basis = transpile(circuit, backend=backend)
+            qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
             x = int(shots)
             job = backend.run(qc_basis, shots=x) 
             result = job.result()
@@ -193,7 +193,7 @@ class executeCircuitIBM:
             sampler = Sampler(mode=backend)
             #sampler.options.execution.rep_delay = 0.5 # set it to the maximum of the machine instead -> config.rep_delay_range[1]
             with self.transpile_lock:
-                qc_basis = transpile(circuit, backend=backend)
+                qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
             x = int(shots)
 
             while True:
