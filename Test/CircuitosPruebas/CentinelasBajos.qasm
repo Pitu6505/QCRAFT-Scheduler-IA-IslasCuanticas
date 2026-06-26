@@ -20,7 +20,7 @@ h q[2];
 c_flag[0] = measure q[2];
 
 // 4. LÓGICA DINÁMICA: Si el centinela no detectó ruido (0), continuamos
-if (c_flag[0] == 0) {
+if (c_flag == 0) {
     x q[0];
 }
 

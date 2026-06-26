@@ -28,7 +28,7 @@ c_flag[0] = measure q[2];
 
 // 4. LÓGICA DINÁMICA: La instrucción de abajo será ABORTADA por el hardware 
 // en una gran cantidad de shots porque c_flag[0] será 1 debido al ruido térmico.
-if (c_flag[0] == 0) {
+if (c_flag == 0) {
     x q[0];
 }
 
