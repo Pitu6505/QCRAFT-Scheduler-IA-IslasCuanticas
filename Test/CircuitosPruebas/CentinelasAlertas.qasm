@@ -5,10 +5,10 @@ qubit[3] q;
 bit[2] c_data;
 bit[1] c_flag;
 
-// 1. Preparamos el centinela en alta sensibilidad
+// 1. Preparación en alta sensibilidad
 h q[2];
 
-// 2. Circuito de datos: Inyección masiva de pulsos de microondas
+// 2. Circuito de datos: Inyección masiva de pulsos de microondas (Crosstalk)
 h q[0];
 cx q[0], q[1];
 cx q[1], q[0];
@@ -20,18 +20,22 @@ cx q[0], q[1];
 cx q[1], q[0];
 cx q[0], q[1];
 cx q[1], q[0];
-// En un simulador local no pasará nada, pero en hardware real esto genera mucho crosstalk
+
+// BARRERA 1: Evita que el compilador adelante las medidas
+barrier; 
 
 // 3. Revertimos el centinela y lo medimos
 h q[2];
 c_flag[0] = measure q[2];
 
-// 4. LÓGICA DINÁMICA: La instrucción de abajo será ABORTADA por el hardware 
-// en una gran cantidad de shots porque c_flag[0] será 1 debido al ruido térmico.
+// 4. LÓGICA DINÁMICA: Si hubo ruido (c_flag es 1), la QPU NO ejecutará esta X
 if (c_flag == 0) {
     x q[0];
 }
 
-// 5. Medidas finales de datos
+// BARRERA 2: Espera a que termine la lógica para medir los datos
+barrier; 
+
+// 5. Medidas finales (obligatoriamente al final)
 c_data[0] = measure q[0];
 c_data[1] = measure q[1];
