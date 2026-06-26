@@ -1,3 +1,30 @@
 # Ignorar archivos con credenciales / integraciones IBM
 *.env
 _pycache__/**
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+
+# Archivos de herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
+
+# Configuración de Jupyter
+.ipynb_checkpoints/
+
+# Distribución
+build/
+dist/
+*.egg-info/
