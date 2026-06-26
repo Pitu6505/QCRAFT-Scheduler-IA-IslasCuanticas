@@ -8,7 +8,7 @@ pathCircuit = 'circuit'
 
 
 urls = {
-    "CentinelaInactivo": "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/Qbits-Centinelas/Test/CircuitosPruebas/CentinelasBajos.qasm"
+    "CentinelaActivo": "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/Qbits-Centinelas/Test/CircuitosPruebas/CentinelasAlertas.qasm"
 #   la composicion 4 es desde Reversible-3 hasta vqe-4 sin las dynamic. La composicion 5 es de todos los dynamic
 }
 

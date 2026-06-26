@@ -1,30 +1,28 @@
 OPENQASM 3.0;
 include "stdgates.inc";
 
-qubit[3] q;
+// NOTA: NO declaramos registros de qubits virtuales como 'qubit[3] q;'
 bit[2] c_data;
 bit[1] c_flag;
 
-// 1. Preparación y entrelazamiento
-h q[2];
-h q[0];
-cx q[0], q[1];
+// 1. Preparación usando QUBITS FÍSICOS DIRECTOS ($)
+h $13; // Forzamos al qubit físico 13 como centinela
+h $11; // Forzamos al qubit físico 11 como datos
+cx $11, $12; // Puerta CX física entre el qubit 11 y el 12
 
-// BARRERA 1: Evita que el compilador adelante las medidas finales
-barrier; 
+barrier;
 
-// 2. Medida del centinela
-h q[2];
-c_flag[0] = measure q[2];
+// 2. Medida del centinela físico
+h $13;
+c_flag[0] = measure $13;
 
-// 3. Lógica dinámica
+// 3. Lógica dinámica condicional
 if (c_flag == 0) {
-    x q[0];
+    x $11;
 }
 
-// BARRERA 2: Espera a que termine la lógica para medir los datos
-barrier; 
+barrier;
 
-// 4. Medidas finales (ahora sí, obligatoriamente al final)
-c_data[0] = measure q[0];
-c_data[1] = measure q[1];
+// 4. Medidas finales en los qubits físicos asignados
+c_data[0] = measure $11;
+c_data[1] = measure $12;

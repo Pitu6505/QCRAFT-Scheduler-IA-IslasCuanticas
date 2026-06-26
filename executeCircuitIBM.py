@@ -137,9 +137,30 @@ class executeCircuitIBM:
         result = job.result()
         # counts = result[0].data.creg_c.get_counts()
         data_bin = result[0].data
-        creg_name = [k for k in dir(data_bin) if not k.startswith('_')][0]
-        counts = getattr(data_bin, creg_name).get_counts()
-        return counts
+        
+        # Buscar todos los nombres de registros clásicos válidos
+        creg_names = [k for k in dir(data_bin) if not k.startswith('_')]
+        
+        # Combinar los diccionarios de resultados
+        counts_combinados = {}
+        # Iterar sobre las filas de resultados en crudo (bitstrings)
+        primer_registro = getattr(data_bin, creg_names[0])
+        for i in range(primer_registro.num_shots):
+            bitstring_completo = ""
+            for name in creg_names:
+                # Extraer el valor del bit para este shot específico
+                bit_val = getattr(data_bin, name).get_int(i)
+                longitud = getattr(data_bin, name).num_bits
+                # Formatear a binario rellenando con ceros
+                bitstring_completo += format(bit_val, f'0{longitud}b') + " "
+            
+            bitstring_completo = bitstring_completo.strip()
+            if bitstring_completo in counts_combinados:
+                counts_combinados[bitstring_completo] += 1
+            else:
+                counts_combinados[bitstring_completo] = 1
+                
+        counts = counts_combinados
 
     def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
         """
