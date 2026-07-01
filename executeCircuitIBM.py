@@ -114,7 +114,7 @@ class executeCircuitIBM:
 
             service = self.service
             backend = service.backend(machine)
-            qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
+            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
             x = int(shots)
             job = backend.run(qc_basis, shots=x) 
             result = job.result()
@@ -161,6 +161,7 @@ class executeCircuitIBM:
                 counts_combinados[bitstring_completo] = 1
                 
         counts = counts_combinados
+        return counts
 
     def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
         """
@@ -193,7 +194,7 @@ class executeCircuitIBM:
             sampler = Sampler(mode=backend)
             #sampler.options.execution.rep_delay = 0.5 # set it to the maximum of the machine instead -> config.rep_delay_range[1]
             with self.transpile_lock:
-                qc_basis = transpile(circuit, backend=backend, optimizacion_level=0)
+                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
             x = int(shots)
 
             while True:
@@ -219,9 +220,44 @@ class executeCircuitIBM:
             # -----------------------------------------------------#
 
             result = job.result()
-            # counts = result[0].data.creg_c.get_counts()
-            creg_name = qc_basis.cregs[0].name
-            counts = getattr(result[0].data, creg_name).get_counts()
+            
+            # -----------------------------------------------------#
+            # Extracción de múltiples registros clásicos para QASM 3
+# Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
+# -----------------------------------------------------#
+            # Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
+           # -----------------------------------------------------#
+            # Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
+            data_bin = result[0].data
+            
+            # Buscar SOLO los atributos que tengan la función 'get_bitstrings'
+            # Esto ignora automáticamente enteros, funciones internas, booleanos, etc.
+            creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
+            
+            counts_combinados = {}
+            
+            if creg_names:
+                # Extraemos directamente la lista de resultados en texto ('00', '10', etc.) para cada registro
+                bitstrings_por_registro = {}
+                for name in creg_names:
+                    bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
+                
+                # Calculamos los shots contando cuántos resultados devolvió el primer registro
+                primer_nombre = creg_names[0]
+                num_shots = len(bitstrings_por_registro[primer_nombre])
+                
+                # Recorremos cada shot y unimos los registros (ej: "1" y "01" -> "1 01")
+                for i in range(num_shots):
+                    bitstring_completo = " ".join([bitstrings_por_registro[name][i] for name in creg_names])
+                    
+                    if bitstring_completo in counts_combinados:
+                        counts_combinados[bitstring_completo] += 1
+                    else:
+                        counts_combinados[bitstring_completo] = 1
+                        
+            counts = counts_combinados
+            # -----------------------------------------------------#
+            # -----------------------------------------------------#
 
             with self.condition:
                 self.queued_jobs -= 1
