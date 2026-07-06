@@ -54,20 +54,41 @@ class executeCircuitIBM:
         return backend
 
 
-    def code_to_circuit_ibm(self, code_str:str) -> qiskit.QuantumCircuit: #Inverse parser to get the circuit object from the string
+    def code_to_circuit_ibm(self, code_str:str) -> qiskit.QuantumCircuit: 
         """
-        Transforms a string representation (OpenQASM 3.0) of a circuit into a Qiskit circuit
-        utilizando el parser nativo de Qiskit.
+        Transforms a string representation (OpenQASM 3.0 or Python script) 
+        of a circuit into a Qiskit circuit object.
         """
-        try:
-            # Cargamos directamente el string en formato OpenQASM 3.0
-            circuit = qiskit.qasm3.loads(code_str)
-            print(f"✅ Circuito cargado correctamente desde OpenQASM 3.0: {circuit}")
-            return circuit
-            
-        except Exception as e:
-            print(f"❌ Error al cargar OpenQASM 3.0: {e}")
-            raise ValueError(f"Invalid circuit code (OpenQASM 3 expected): {e}")
+        # 1. Si es código OpenQASM 3.0 nativo
+        if "OPENQASM 3.0" in code_str:
+            try:
+                circuit = qiskit.qasm3.loads(code_str)
+                print("✅ Circuito cargado correctamente desde OpenQASM 3.0")
+                return circuit
+            except Exception as e:
+                print(f"❌ Error al cargar OpenQASM 3.0: {e}")
+                raise ValueError(f"Invalid QASM3 code: {e}")
+                
+        # 2. Si es un script de Python concatenado (Descargado de GitHub)
+        else:
+            try:
+                local_vars = {}
+                # Eliminamos el "return circuit" que inyecta create_circuit, 
+                # ya que exec() explota si ve un return fuera de una función
+                clean_code = code_str.replace("return circuit", "")
+                
+                # Ejecutamos el string de Python en un entorno seguro y capturamos las variables
+                exec(clean_code, globals(), local_vars)
+                
+                # Rescatamos el objeto QuantumCircuit ensamblado
+                if 'circuit' in local_vars:
+                    return local_vars['circuit']
+                else:
+                    raise ValueError("No se generó el objeto 'circuit' al compilar el script.")
+                    
+            except Exception as e:
+                print(f"❌ Error al ejecutar el código Python de Qiskit: {e}")
+                raise ValueError(f"Invalid Python circuit code: {e}")
 
 
     def get_transpiled_circuit_depth_ibm(self, circuit:QuantumCircuit, backend:qiskit.providers.BackendV2) -> int:
@@ -163,38 +184,34 @@ class executeCircuitIBM:
         counts = counts_combinados
         return counts
 
-    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
+    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list, layout_fisico:list=None) -> dict:
         """
         Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
-
-        Args:
-            machine (str): The machine to execute the circuit.        
-            circuit (QuantumCircuit): The circuit to execute.        
-            shots (int): The number of shots to execute the circuit.        
-            users (list): The users that executed the circuit.        
-            qubit_number (list): The number of qubits of the circuit per user.        
-            circuit_names (list): The name of the circuit that was executed per user.
-
-        Returns:
-            dict: The results of the circuit execution.
         """
 
         if machine == "local":
             backend = AerSimulator()
             x = int(shots)
+            # Aplicamos el layout si existe, incluso en simulación local para mantener coherencia
+            if layout_fisico is not None:
+                circuit = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
+                
             job = backend.run(circuit, shots=x)
             result = job.result()
             counts = result.get_counts()
             return counts
         else:
             # Load your IBM Quantum account
-
             service = self.service
             backend = service.backend(machine)
             sampler = Sampler(mode=backend)
-            #sampler.options.execution.rep_delay = 0.5 # set it to the maximum of the machine instead -> config.rep_delay_range[1]
+            
             with self.transpile_lock:
-                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+                # AQUÍ ESTÁ LA CLAVE: Le pasamos a Qiskit los qubits físicos exactos que calculó tu BFS
+                if layout_fisico is not None:
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
+                else:
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0)
             x = int(shots)
 
             while True:

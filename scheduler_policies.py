@@ -169,7 +169,8 @@ class SchedulerPolicies:
         maxDepth = request.json['maxDepth']
         provider = request.json['provider']
         iteracion = request.json['Iteracion']
-        data = (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
+        sentinel_mode = request.json.get('sentinel_mode', None)
+        data = (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion, sentinel_mode)
         self.services[service_name].queues[provider].append(data)
         if not self.services[service_name].timers[provider].is_alive():
             self.services[service_name].timers[provider].start()
@@ -317,14 +318,18 @@ class SchedulerPolicies:
         composition_qubits = 0
         es_qasm3 = False # NUEVA BANDERA
         for entry in urls:
-            # aceptar tuplas de 6 o 7 elementos
-            if len(entry) == 7:
+            # 📝 CAMBIO: Aceptar tuplas de 6, 7 u 8 elementos
+            if len(entry) == 8:
+                url, num_qubits, shots, user, circuit_name, depth, iterator, sentinel_mode = entry
+            elif len(entry) == 7:
                 url, num_qubits, shots, user, circuit_name, depth, iterator = entry
+                sentinel_mode = None
             elif len(entry) == 6:
                 url, num_qubits, shots, user, circuit_name, depth = entry
                 iterator = None
+                sentinel_mode = None
             else:
-                raise ValueError(f"Cada elemento de 'urls' debe tener 6 o 7 campos; recibido {len(entry)}: {entry}")
+                raise ValueError(f"Cada elemento de 'urls' debe tener 6, 7 o 8 campos; recibido {len(entry)}: {entry}")
             
             # Nuevo 
             if "OPENQASM 3.0" in url:
@@ -448,11 +453,22 @@ class SchedulerPolicies:
             
             # Formateo de la cola usando CircuitQueue correctamente
             formatted_queue = CircuitQueue()
-            for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
+            sentinel_mode = None
+            for item in queue:
+
+                circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion = item[:7]
+                
+                # Si hay un octavo elemento, es el modo centinela
+                sentinel_mode = item[7] if len(item) > 7 else None
+                if sentinel_mode:
+                    sentinel_mode_batch = sentinel_mode # Lo guardamos para la siguiente iteración
+
+                edges = self.extract_edges_from_circuit(circuit)  
+
                 formatted_queue.add_circuit(
                     circuit_id=str(user),
                     required_qubits=num_qubits,
-                    edges=None
+                    edges=edges
                 )
             print(f" Cola formateada: {formatted_queue.get_queue()}")
 
@@ -475,16 +491,17 @@ class SchedulerPolicies:
 
             # Formatear los datos para create_circuit
             urls_for_create = [
-                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
+                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion, sentinel_mode)
                 for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos
             ]
             # Actualizar la cola: eliminar elementos procesados y aumentar la prioridad de los que no se procesaron
 
             queue[:] = [
-                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion + 1)
-                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue
-                    if str(user) not in seleccionados_ids  # aquí también
-]
+                item[:6] + (item[6] + 1,) + item[7:]
+                for item in queue
+                if str(item[3]) not in seleccionados_ids
+            ]
+
             # **Verificar si los elementos realmente se eliminaron**
             elementos_restantes = [item for item in queue if str(item[3]) in seleccionados_ids]
             if elementos_restantes:
@@ -498,11 +515,12 @@ class SchedulerPolicies:
             # Ejecución con layout físico
            
             if urls_for_create:
+                total_qbits = sum(item[1] for item in urls_for_create)
+                print(f"Suma total de qubits a ejecutar: {total_qbits}")
                 code, qb = [], []
                 shotsUsr = [item[2] for item in urls_for_create]
                 self.create_circuit(urls_for_create, code, qb, provider)
                 data = {"code": code}
-                # Pasar layout_fisico como argumento extra
                 Thread(target=executeCircuit, args=(json.dumps(data), qb, shotsUsr, provider, urls_for_create, machine, layout_fisico)).start()
 
             end_time = time.process_time()  # Finalizar el timer
@@ -549,10 +567,19 @@ class SchedulerPolicies:
             # Proveedor que se esta utilizando
             print(f"Proveedor seleccionado: {provider}")
 
-            
             formatted_queue = CircuitQueue()
-            for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue:
-                #print("mostrando circuito:", circuit)
+            
+            # 📝 CAMBIO 1: Inicializamos la variable para guardar el modo del centinela
+            sentinel_mode_batch = None 
+            
+            # 📝 CAMBIO 2: Leemos la tupla de forma segura, tenga 7 u 8 elementos
+            for item in queue:
+                circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion = item[:7]
+                
+                # Si hay un octavo elemento, lo guardamos como el modo del centinela
+                if len(item) > 7:
+                    sentinel_mode_batch = item[7]
+                    
                 edges = self.extract_edges_from_circuit(circuit) 
                 formatted_queue.add_circuit(
                     circuit_id=str(user),
@@ -561,8 +588,9 @@ class SchedulerPolicies:
                 )
             print(f"Cola formateada con edges: {formatted_queue.get_queue()}")
 
-            # Llamada al método que ya tienes implementado
-            cola_procesada, layout_fisico = Cola_Formateada_edges(formatted_queue, provider)
+            # 📝 CAMBIO 3: Le pasamos la variable capturada a la función de IslasCuanticas_Edges.py
+            cola_procesada, layout_fisico = Cola_Formateada_edges(formatted_queue, provider, sentinel_mode=sentinel_mode_batch)
+            
             print(f" Cola procesada: {cola_procesada}")
             print(f" Layout físico asignado: {layout_fisico}")
 
@@ -574,15 +602,14 @@ class SchedulerPolicies:
             seleccionados_ids = {str(s['id']) for s in cola_procesada}
             seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
 
-            urls_for_create = [
-                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion)
-                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in seleccionados_completos
-            ]
+            # 📝 CAMBIO 4: Mantenemos la estructura de la tupla intacta para urls_for_create
+            urls_for_create = [item for item in seleccionados_completos]
 
+            # 📝 CAMBIO 5: Sumamos 1 a la iteración (índice 6) respetando si existe el centinela al final
             queue[:] = [
-                (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion + 1)
-                for (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion) in queue
-                    if str(user) not in seleccionados_ids
+                item[:6] + (item[6] + 1,) + item[7:]
+                for item in queue
+                if str(item[3]) not in seleccionados_ids
             ]
 
             if urls_for_create:
@@ -598,7 +625,7 @@ class SchedulerPolicies:
             elapsed_time = end_time - start_time
             print(f"Tiempo de ejecución de send_edges: {elapsed_time:.6f} segundos")
 
-            with open("./resultados/SalidaIslasCuanticasEdges.txt", 'a') as file:
+            with open("./SalidaIslasCuanticasEdges.txt", 'a') as file:               
                 file.write("Cola Formateada con edges:")
                 file.write(str(formatted_queue))
                 file.write("\n")
@@ -617,7 +644,6 @@ class SchedulerPolicies:
                 self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
             else:
                 self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
-
         
 
     def extract_edges_from_circuit(self, circuit_code: str):
