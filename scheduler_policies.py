@@ -183,26 +183,70 @@ class SchedulerPolicies:
     def executeCircuit(self, data: dict, qb: list, shots: list, provider: str, urls: list, machine: str, layout_fisico=None) -> None:
         """
         Executes the circuit in the selected provider
-
-        Args:
-            data (dict): The data of the circuit to execute
-            qb (list): The number of qubits per circuit
-            shots (list): The number of shots per circuit
-            provider (str): The provider of the circuit
-            urls (list): The data of each circuit
-            machine (str): The machine to execute the circuit
-            layout_fisico (list, optional): Physical layout for transpilation/execution
         """
 
         circuit = ''
-        for data in json.loads(data)['code']:
-            circuit = circuit + data + '\n'
+        for d in json.loads(data)['code']:
+            circuit = circuit + d + '\n'
 
         loc = {}
         if provider == 'ibm':
             loc['circuit'] = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
+            
+            # --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
+            if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
+                from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+                
+                qc_original = loc['circuit']
+                num_centinelas = len(layout_fisico)
+                
+                # Creamos los registros exclusivos para la vigilancia
+                q_sentinel = QuantumRegister(num_centinelas, 'q_sentinel')
+                c_flag = ClassicalRegister(num_centinelas, 'c_flag')
+                
+                # Nace el nuevo circuito contenedor
+                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
+                
+                # 1. Preparación de los centinelas (Modos de exposición)
+                for i, mapping in enumerate(layout_fisico):
+                    modo = mapping.get('mode', 'standard')
+                    if modo in ['standard', 'robust', 'strict']:
+                        new_qc.h(q_sentinel[i])
+                    elif modo == 't1_decay':
+                        new_qc.x(q_sentinel[i])
+                
+                new_qc.barrier()
+                
+                # 2. Inyección del circuito original de GitHub en paralelo
+                new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                
+                new_qc.barrier()
+                
+                # 3. Medición y reversión dinámica
+                for i, mapping in enumerate(layout_fisico):
+                    modo = mapping.get('mode', 'standard')
+                    if modo == 'robust':
+                        new_qc.x(q_sentinel[i]) # Eco de Hahn
+                    if modo != 't1_decay':
+                        new_qc.h(q_sentinel[i])
+                        
+                    new_qc.measure(q_sentinel[i], c_flag[i])
+                    
+                loc['circuit'] = new_qc
+                
+                # 4. Aplanar el layout físico para el transpilador de IBM
+                datos_planos = []
+                centinelas_planos = []
+                for mapping in layout_fisico:
+                    datos_planos.extend(mapping['data'])
+                    centinelas_planos.append(mapping['sentinel'])
+                
+                layout_fisico = datos_planos + centinelas_planos
+                print(f"🛡️ Circuito FTQC generado. Layout final forzado a: {layout_fisico}")
+            # --- FIN DEL ENSAMBLADOR ---
+
             if layout_fisico is not None:
-                print(f"🟦 Usando layout físico: {layout_fisico}")
+                print(f"🟦 Usando layout físico plano: {layout_fisico}")
         else:
             loc['circuit'] = code_to_circuit_aws(circuit)
 
@@ -253,7 +297,7 @@ class SchedulerPolicies:
 
         # Evitar fallo si counts es None
         if counts is not None:
-            print(counts.items())
+            # print(counts.items())  # Opcional: comentar esta línea para que la consola esté más limpia
 
             data = {
                 "counts": counts,

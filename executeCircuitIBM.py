@@ -238,34 +238,33 @@ class executeCircuitIBM:
 
             result = job.result()
             
-            # -----------------------------------------------------#
-            # Extracción de múltiples registros clásicos para QASM 3
-# Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
-# -----------------------------------------------------#
-            # Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
-           # -----------------------------------------------------#
-            # Extracción de múltiples registros clásicos para QASM 3 / Qiskit V2
+
             data_bin = result[0].data
             
-            # Buscar SOLO los atributos que tengan la función 'get_bitstrings'
-            # Esto ignora automáticamente enteros, funciones internas, booleanos, etc.
+            # Buscar todos los nombres de registros clásicos válidos
             creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
+            
+            bitstrings_por_registro = {}
+            for name in creg_names:
+                bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
             
             counts_combinados = {}
             
             if creg_names:
-                # Extraemos directamente la lista de resultados en texto ('00', '10', etc.) para cada registro
-                bitstrings_por_registro = {}
-                for name in creg_names:
-                    bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
-                
-                # Calculamos los shots contando cuántos resultados devolvió el primer registro
                 primer_nombre = creg_names[0]
                 num_shots = len(bitstrings_por_registro[primer_nombre])
                 
-                # Recorremos cada shot y unimos los registros (ej: "1" y "01" -> "1 01")
+                # Identificamos cuáles son los registros lógicos (ignorando el centinela)
+                registros_datos = [name for name in creg_names if name != 'c_flag']
+                
                 for i in range(num_shots):
-                    bitstring_completo = " ".join([bitstrings_por_registro[name][i] for name in creg_names])
+                    # 1. EL FILTRO FTQC: Si el centinela detectó ruido electromagnético ('1'), ABORTAMOS este shot.
+                    if 'c_flag' in creg_names and '1' in bitstrings_por_registro['c_flag'][i]:
+                        continue # El shot está corrupto. Lo descartamos en software.
+                        
+                    # 2. Si el entorno estaba limpio, extraemos los datos lógicos sin espacios
+                    # (Lo unimos sin espacios para que divideResults.py lo pueda cortar sin romperse)
+                    bitstring_completo = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
                     
                     if bitstring_completo in counts_combinados:
                         counts_combinados[bitstring_completo] += 1
@@ -273,6 +272,7 @@ class executeCircuitIBM:
                         counts_combinados[bitstring_completo] = 1
                         
             counts = counts_combinados
+            # -----------------------------------------------------#
             # -----------------------------------------------------#
             # -----------------------------------------------------#
 

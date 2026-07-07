@@ -39,8 +39,7 @@ def Cola_Formateada_edges(queue: CircuitQueue, provider: str, sentinel_mode: str
     for c in queue.get_queue():
         print(f"  - id={c['id']}, size={c['size']}")
 
-    # Paso 2: Ejecutar el algoritmo de asignación
-    # CAMBIO 2: Pasamos sentinel_mode al planificador lógico
+    # Paso 2: Ejecutar el algoritmo de asignación pasándole el modo del centinela
     placements, errores = place_circuits_logical(G, queue.get_queue(), sentinel_mode=sentinel_mode)
 
     print("\n [DEBUG] Resultado de placements:")
@@ -66,30 +65,27 @@ def Cola_Formateada_edges(queue: CircuitQueue, provider: str, sentinel_mode: str
             circuito = queue_dict[circ_id]
             cola_formateada.append(circuito)
 
-            # CAMBIO 3: Manejo inteligente de la estructura de datos
+            # MANTENER EL DICCIONARIO DEL CENTINELA INTACTO
             if isinstance(assigned, dict):
-                # Si viene con centinelas, MANTENEMOS el diccionario entero para que el ensamblador FTQC pueda leerlo
                 layout_global.append(assigned)
             elif isinstance(assigned, (list, tuple)):
-                # Si es una asignación clásica (lista plana), la extendemos
+                # Normalizar "assigned" a lista plana si es clásico
                 layout_global.extend(list(assigned))
             else:
                 layout_global.append(assigned)
 
-            print(f" [DEBUG] Circuito {circ_id} (size={circuito['size']}) "
-                  f"asignado a qubits físicos {assigned}")
+            print(f" [DEBUG] Circuito {circ_id} (size={circuito['size']}) asignado a qubits físicos {assigned}")
         else:
             print(f" [WARNING] Placement con id {circ_id} no estaba en la cola original")
 
     # Paso 5: Validar correlación entre layout y tamaños de circuitos
     total_qubits_needed = sum(int(c['size']) for c in cola_formateada)
     
-    # CAMBIO 4: Conteo de qubits adaptado a los diccionarios de centinelas
+    # Conteo adaptado a diccionarios
     total_qubits_assigned = 0
     for item in layout_global:
         if isinstance(item, dict):
-            # Sumamos los qubits de datos + 1 del centinela
-            total_qubits_assigned += len(item['data']) + 1
+            total_qubits_assigned += len(item['data']) + 1 # Datos + 1 Centinela
         else:
             total_qubits_assigned += 1
 
@@ -100,7 +96,6 @@ def Cola_Formateada_edges(queue: CircuitQueue, provider: str, sentinel_mode: str
     print(f"\n [DEBUG] Layout global construido: {layout_global}")
 
     if total_qubits_assigned >= total_qubits_needed:
-        # Nota: Usamos >= porque con centinelas SIEMPRE habrá más físicos asignados que lógicos requeridos
         print(f" [VALIDACIÓN] Layout válido: {total_qubits_assigned} qubits físicos asignados "
               f"(requeridos lógicos: {total_qubits_needed}).")
     else:

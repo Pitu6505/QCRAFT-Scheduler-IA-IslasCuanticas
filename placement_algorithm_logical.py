@@ -1,5 +1,3 @@
-# Nuevo archivo: placement_algorithm_logical.py
-
 from config import MIN_CIRCUIT_DISTANCE, MAX_NOISE_THRESHOLD, Porcentaje_util
 import networkx as nx
 from networkx.algorithms import isomorphism
@@ -95,7 +93,6 @@ def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold):
     best_centinela = None
     best_noise = float('inf')
 
-    # Ordenar nodos por ruido para explorar los mejores primero
     sorted_nodes = sorted(
         [n for n in G.nodes if n not in used_nodes and G.nodes[n]['noise'] <= noise_threshold],
         key=lambda n: G.nodes[n]['noise']
@@ -145,6 +142,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
     dynamic_threshold = calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util)
     noise_threshold = dynamic_threshold
     print(f" Usando umbral de ruido: {noise_threshold:.4f}")
+    
     if sentinel_mode:
         print(f"🛡️ MODO FTQC ACTIVADO: Reservando centinelas tipo '{sentinel_mode}'")
 
@@ -181,8 +179,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
                 placed.append((circuit['id'], mapeo_estructurado))
                 print(f"  [+] Isla {circuit['id']} mapeada: Datos={isla_data}, Centinela={centinela}")
             else:
-                reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinela: "
-                reason += f"espacio/ruido insuficiente (umbral {noise_threshold:.4f})."
+                reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinela: espacio/ruido insuficiente."
                 errors.append(reason)
             
             continue # Saltamos la rama clásica y vamos al siguiente circuito
@@ -202,8 +199,6 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
                 continue
             else:
                 print(f"⚠️ No se encontró isomorfismo para circuito {circuit['id']}, usando BFS optimizado")
-        elif 'edges' in circuit and circuit['edges'] and size > 4:
-            pass 
 
         if 'edges' in circuit and circuit['edges']:
             logical_graph = nx.Graph()

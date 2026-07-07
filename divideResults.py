@@ -1,3 +1,5 @@
+from unittest import result
+
 import numpy as np
 
 def proportionalAllocation(total_shots:int,newCounts:dict,usershots:list) -> dict:
@@ -77,15 +79,14 @@ def divideResults(counts:dict, shots:list, provider:str, qb:list, users:list, ci
 
         # Calculate the total number of shots
         total_shots = sum(newCounts.values())
-        # Check if the total number of shots is equal to the number of executed shots
-        if total_shots == shots[i]:
-            # If they are equal, use newCounts directly
-            selected_counts = newCounts
-        else:
-            selected_counts = stratifiedSampling(total_shots,newCounts,shots[i])
-            #selected_counts = proportionalAllocation(total_shots,newCounts,shots[i])
+        
+        # 🛑 APAGAMOS EL RELLENO ARTIFICIAL (STRATIFIED SAMPLING)
+        # Para registrar la eficacia del FTQC, devolvemos los datos puros podados.
+        selected_counts = newCounts
 
-        print(users[i],': ',selected_counts) #Return the number of shots corresponding to each user
+        # Imprimimos por consola cuántos shots han sobrevivido al filtro de ruido
+        print(f"🛡️ [{users[i]}] - Circuit: {circuit_name[i]} | Shots válidos: {total_shots}/{shots[i]} ({(total_shots/shots[i])*100:.2f}%)") 
+        
         result.append({(users[i],circuit_name[i]):selected_counts})
 
     return result

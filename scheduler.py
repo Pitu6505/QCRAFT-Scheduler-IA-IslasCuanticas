@@ -157,7 +157,7 @@ class Scheduler:
         #        if list(line_dict.keys())[0] not in ids:
         #            file.write(line)        
 
-    def select_policy(self, url:str, num_qubits:int, shots:int, user:int, circuit_name:str, maxDepth:int, provider:str, policy:str) -> None:
+    def select_policy(self, url:str, num_qubits:int, shots:int, user:int, circuit_name:str, maxDepth:int, provider:str, policy:str, sentinel_mode:str=None) -> None:
         """
         Select the policy to execute the circuit and send a post request to the policy service
 
@@ -171,7 +171,7 @@ class Scheduler:
             provider (str): The provider to execute the circuit            
             policy (str): The policy to execute the circuit
         """
-        data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider , "Iteracion": 1} # Modificaco aqui la cola para la prioridad 
+        data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider , "Iteracion": 1, "sentinel_mode": sentinel_mode} # Modificaco aqui la cola para la prioridad 
         requests.post(self.policy_service+policy, json=data)
         
 
@@ -337,7 +337,7 @@ class Scheduler:
                     except:
                         print("Error in the request to the translator")
                     # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
-                self.select_policy(url, num_qubits, shots, user, url, maxDepth, provider, policy)
+                self.select_policy(url, num_qubits, shots, user, url, maxDepth, provider, policy, sentinel_mode=request.json.get('sentinel_mode', None)) # Modificaco aqui la cola para la prioridad
     
         return str(user), 200  #return the id
         #return "Your id is "+str(user), 200  # Return a response
@@ -351,6 +351,7 @@ class Scheduler:
             url (str): The GitHub URL of the circuit
             shots (int): The number of shots to execute the circuit
             policy (str): The policy to execute the circuit. Default is 'time'
+            sentinel_mode (str): The sentinel mode for the circuit. Default is None
 
         Returns:
             tuple: The response of the policy service with the scheduler task identification
@@ -366,6 +367,7 @@ class Scheduler:
             policy = request.json['policy']
         url = request.json['url']
         shots = request.json['shots']
+        sentinel_mode = request.json.get('sentinel_mode', None)  # Optional parameter, default to None if not provided
 
         if not isinstance(shots, int) or shots <= 0 or shots > 20000:
             return "Invalid shots value", 400
@@ -404,7 +406,7 @@ class Scheduler:
             provider = 'ibm'
             
             # Lo enviamos directamente a la política saltando todo lo demás
-            self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
+            self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
             return str(user), 200
         # ---------------------------------------
 
@@ -505,7 +507,7 @@ class Scheduler:
             num_qubits = len(qubits.values())
             provider = 'aws'
 
-        self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
+        self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
 
         return str(user), 200
 
