@@ -200,7 +200,7 @@ class SchedulerPolicies:
                 
                 qc_original = loc['circuit']
                 
-                # Novedad: Contamos cuántos centinelas hay en total sumando las fronteras de todas las islas
+                # Contamos cuántos centinelas hay en total sumando las fronteras de todas las islas
                 total_centinelas = 0
                 for mapping in layout_fisico:
                     if not isinstance(mapping['sentinel'], list):
@@ -218,7 +218,8 @@ class SchedulerPolicies:
                 for mapping in layout_fisico:
                     modo = mapping.get('mode', 'standard')
                     for _ in mapping['sentinel']: # Iteramos por cada centinela de la isla
-                        if modo in ['standard', 'robust', 'strict', 'completo']:
+                        # Añadimos 'dd' a los modos que empiezan en superposición
+                        if modo in ['standard', 'robust', 'completo', 'dd']:
                             new_qc.h(q_sentinel[idx])
                         elif modo == 't1_decay':
                             new_qc.x(q_sentinel[idx])
@@ -236,14 +237,26 @@ class SchedulerPolicies:
                 for mapping in layout_fisico:
                     modo = mapping.get('mode', 'standard')
                     for _ in mapping['sentinel']:
-                        if modo in ['robust', 'completo']:
-                            new_qc.x(q_sentinel[idx]) # Eco de Hahn
+                        
+                        # === NUEVO MODO: Desacoplamiento Dinámico (Metralleta XY) ===
+                        if modo == 'dd':
+                            new_qc.x(q_sentinel[idx])
+                            new_qc.barrier(q_sentinel[idx]) # Forzamos la ejecución física
+                            new_qc.y(q_sentinel[idx])
+                            new_qc.barrier(q_sentinel[idx])
+                            new_qc.x(q_sentinel[idx])
+                            new_qc.barrier(q_sentinel[idx])
+                            new_qc.y(q_sentinel[idx])
+                            new_qc.h(q_sentinel[idx])
                             
-                        # === ESTANDARIZACIÓN UNIVERSAL DE ERRORES ===
-                        if modo == 't1_decay':
-                            new_qc.x(q_sentinel[idx]) # Invertimos: Ahora '0' es éxito y '1' es decaimiento
-                        else:
-                            new_qc.h(q_sentinel[idx]) # Reversión de fase para el resto de sensores
+                        # === MODOS ANTERIORES ===
+                        elif modo in ['robust', 'completo']:
+                            new_qc.x(q_sentinel[idx]) # Eco de Hahn
+                            new_qc.h(q_sentinel[idx])
+                        elif modo == 't1_decay':
+                            new_qc.x(q_sentinel[idx]) # Inversión para estandarizar 0=Éxito
+                        else: # standard
+                            new_qc.h(q_sentinel[idx])
                             
                         new_qc.measure(q_sentinel[idx], c_flag[idx])
                         idx += 1
@@ -258,7 +271,8 @@ class SchedulerPolicies:
                     centinelas_planos.extend(mapping['sentinel'])
                 
                 layout_fisico = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores). Layout final: {layout_fisico}")
+                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo: {layout_fisico[0] if isinstance(layout_fisico[0], str) else 'Mix'}). Layout final: {layout_fisico}")
+            # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
 

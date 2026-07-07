@@ -23,7 +23,7 @@ async def main():
         "shots": 10000,
         "provider": ['ibm'],
         "policy": "Islas_Cuanticas_Edges", 
-        "sentinel_mode": "completo" 
+        "sentinel_mode": "dd" 
     }
     async with aiohttp.ClientSession() as session:
         tasks = []
