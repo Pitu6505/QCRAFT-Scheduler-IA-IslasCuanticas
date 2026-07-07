@@ -194,55 +194,72 @@ class SchedulerPolicies:
             loc['circuit'] = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
             
             # --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
+# --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
             if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
                 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
                 
                 qc_original = loc['circuit']
-                num_centinelas = len(layout_fisico)
                 
-                # Creamos los registros exclusivos para la vigilancia
-                q_sentinel = QuantumRegister(num_centinelas, 'q_sentinel')
-                c_flag = ClassicalRegister(num_centinelas, 'c_flag')
+                # Novedad: Contamos cuántos centinelas hay en total sumando las fronteras de todas las islas
+                total_centinelas = 0
+                for mapping in layout_fisico:
+                    if not isinstance(mapping['sentinel'], list):
+                        mapping['sentinel'] = [mapping['sentinel']] # Normalizamos a lista por seguridad
+                    total_centinelas += len(mapping['sentinel'])
                 
-                # Nace el nuevo circuito contenedor
+                # Creamos registros del tamaño exacto del escudo
+                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                c_flag = ClassicalRegister(total_centinelas, 'c_flag')
+                
                 new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
                 
-                # 1. Preparación de los centinelas (Modos de exposición)
-                for i, mapping in enumerate(layout_fisico):
+                # 1. Preparación de los centinelas
+                idx = 0
+                for mapping in layout_fisico:
                     modo = mapping.get('mode', 'standard')
-                    if modo in ['standard', 'robust', 'strict']:
-                        new_qc.h(q_sentinel[i])
-                    elif modo == 't1_decay':
-                        new_qc.x(q_sentinel[i])
+                    for _ in mapping['sentinel']: # Iteramos por cada centinela de la isla
+                        if modo in ['standard', 'robust', 'strict', 'completo']:
+                            new_qc.h(q_sentinel[idx])
+                        elif modo == 't1_decay':
+                            new_qc.x(q_sentinel[idx])
+                        idx += 1
                 
                 new_qc.barrier()
                 
-                # 2. Inyección del circuito original de GitHub en paralelo
+                # 2. Inyección del circuito lógico
                 new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
                 
                 new_qc.barrier()
                 
                 # 3. Medición y reversión dinámica
-                for i, mapping in enumerate(layout_fisico):
+                idx = 0
+                for mapping in layout_fisico:
                     modo = mapping.get('mode', 'standard')
-                    if modo == 'robust':
-                        new_qc.x(q_sentinel[i]) # Eco de Hahn
-                    if modo != 't1_decay':
-                        new_qc.h(q_sentinel[i])
-                        
-                    new_qc.measure(q_sentinel[i], c_flag[i])
+                    for _ in mapping['sentinel']:
+                        if modo in ['robust', 'completo']:
+                            new_qc.x(q_sentinel[idx]) # Eco de Hahn
+                            
+                        # === ESTANDARIZACIÓN UNIVERSAL DE ERRORES ===
+                        if modo == 't1_decay':
+                            new_qc.x(q_sentinel[idx]) # Invertimos: Ahora '0' es éxito y '1' es decaimiento
+                        else:
+                            new_qc.h(q_sentinel[idx]) # Reversión de fase para el resto de sensores
+                            
+                        new_qc.measure(q_sentinel[idx], c_flag[idx])
+                        idx += 1
                     
                 loc['circuit'] = new_qc
                 
-                # 4. Aplanar el layout físico para el transpilador de IBM
+                # 4. Aplanar el layout físico
                 datos_planos = []
                 centinelas_planos = []
                 for mapping in layout_fisico:
                     datos_planos.extend(mapping['data'])
-                    centinelas_planos.append(mapping['sentinel'])
+                    centinelas_planos.extend(mapping['sentinel'])
                 
                 layout_fisico = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado. Layout final forzado a: {layout_fisico}")
+                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores). Layout final: {layout_fisico}")
+            # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
 
             if layout_fisico is not None:

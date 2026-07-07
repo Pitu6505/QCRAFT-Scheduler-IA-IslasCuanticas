@@ -79,13 +79,16 @@ def Cola_Formateada_edges(queue: CircuitQueue, provider: str, sentinel_mode: str
             print(f" [WARNING] Placement con id {circ_id} no estaba en la cola original")
 
     # Paso 5: Validar correlación entre layout y tamaños de circuitos
+# Paso 5: Validar correlación entre layout y tamaños de circuitos
     total_qubits_needed = sum(int(c['size']) for c in cola_formateada)
     
-    # Conteo adaptado a diccionarios
+    # Conteo adaptado a diccionarios múltiples
     total_qubits_assigned = 0
     for item in layout_global:
         if isinstance(item, dict):
-            total_qubits_assigned += len(item['data']) + 1 # Datos + 1 Centinela
+            # Convertimos a lista si es necesario y contamos
+            sentinels = item['sentinel'] if isinstance(item['sentinel'], list) else [item['sentinel']]
+            total_qubits_assigned += len(item['data']) + len(sentinels) 
         else:
             total_qubits_assigned += 1
 

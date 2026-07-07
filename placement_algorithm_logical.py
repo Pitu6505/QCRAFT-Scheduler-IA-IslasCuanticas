@@ -84,13 +84,10 @@ def bfs_connected_groups(G, start, size, used_nodes, noise_threshold=None, max_s
     
     return groups
 
-def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold):
-    """
-    Busca un grupo de 'size' qubits (isla) + 1 qubit extra (centinela) adyacente,
-    garantizando que la isla y el centinela mantengan la distancia requerida de otras islas.
-    """
+def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sentinel_mode):
+    """Busca el mejor grupo para la isla y los centinelas adyacentes."""
     best_group = None
-    best_centinela = None
+    best_centinelas = None
     best_noise = float('inf')
 
     sorted_nodes = sorted(
@@ -99,40 +96,42 @@ def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold):
     )
     
     max_nodes_to_explore = min(10, len(sorted_nodes))
-    
     for node in sorted_nodes[:max_nodes_to_explore]:
         candidate_groups = bfs_connected_groups(G, node, size, used_nodes, noise_threshold, max_solutions=2)
         
         for group in candidate_groups:
             candidatos_centinela = []
-            
-            # Buscar vecinos disponibles para hacer de centinela
             for isla_node in group:
                 for vecino in G.neighbors(isla_node):
                     if vecino not in used_nodes and vecino not in group:
                         if G.nodes[vecino]['noise'] <= noise_threshold:
-                            candidatos_centinela.append(vecino)
+                            if vecino not in candidatos_centinela: # Evitar duplicados
+                                candidatos_centinela.append(vecino)
             
             if candidatos_centinela:
-                # Escoger el centinela con el menor ruido térmico
-                centinela = min(candidatos_centinela, key=lambda n: G.nodes[n]['noise'])
-                all_nodes = group + [centinela]
-                
-                # Verificar que la estructura COMPLETA (Isla + Centinela) está lejos de islas previas
+                if sentinel_mode == "completo":
+                    # MODO JAULA: Cogemos todo el perímetro protector
+                    centinelas = candidatos_centinela
+                else:
+                    # MODO NORMAL: Cogemos solo el más silencioso
+                    mejor_centinela = min(candidatos_centinela, key=lambda n: G.nodes[n]['noise'])
+                    centinelas = [mejor_centinela]
+
+                all_nodes = group + centinelas
                 if is_far_enough(G, all_nodes, used_nodes):
-                    total_noise = sum(G.nodes[n]['noise'] for n in group) + G.nodes[centinela]['noise']
-                    
+                    # El ruido de la estructura es la suma de los datos y de todos los centinelas
+                    total_noise = sum(G.nodes[n]['noise'] for n in group) + sum(G.nodes[n]['noise'] for n in centinelas)
                     if total_noise < best_noise:
                         best_noise = total_noise
                         best_group = group
-                        best_centinela = centinela
+                        best_centinelas = centinelas
                         
-    return best_group, best_centinela
+    return best_group, best_centinelas
 
 def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None):
     """
     Asigna circuitos a qubits físicos.
-    Si 'sentinel_mode' tiene un valor (ej: 'standard', 'robust'), fuerza la reserva de un centinela.
+    Si 'sentinel_mode' tiene un valor, fuerza la reserva de centinela(s).
     """
     placed = []
     errors = []
@@ -161,25 +160,25 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
         size = circuit['size']
 
         # =====================================================================
-        # RAMA 1: ASIGNACIÓN CON PROTECCIÓN (ISLA + CENTINELA)
+        # RAMA 1: ASIGNACIÓN CON PROTECCIÓN (ISLA + CENTINELAS)
         # =====================================================================
         if sentinel_mode:
-            isla_data, centinela = find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold)
+            # === AQUÍ ESTABA EL ERROR: Ahora le pasamos sentinel_mode y recibimos una lista de centinelas ===
+            isla_data, centinelas = find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sentinel_mode)
             
-            if isla_data and centinela:
-                all_nodes = isla_data + [centinela]
+            if isla_data and centinelas:
+                all_nodes = isla_data + centinelas # Ambos son listas, así que se suman directamente
                 used_nodes.update(all_nodes)
                 
-                # Devolvemos un DICCIONARIO para que el ensamblador sepa inyectar el código QASM
                 mapeo_estructurado = {
                     'data': isla_data,
-                    'sentinel': centinela,
+                    'sentinel': centinelas,
                     'mode': sentinel_mode
                 }
                 placed.append((circuit['id'], mapeo_estructurado))
-                print(f"  [+] Isla {circuit['id']} mapeada: Datos={isla_data}, Centinela={centinela}")
+                print(f"  [+] Isla {circuit['id']} mapeada: Datos={isla_data}, Centinelas={centinelas}")
             else:
-                reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinela: espacio/ruido insuficiente."
+                reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinelas: espacio/ruido insuficiente."
                 errors.append(reason)
             
             continue # Saltamos la rama clásica y vamos al siguiente circuito
