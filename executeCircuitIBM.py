@@ -2,6 +2,8 @@
 # coding: utf-8
 
 # import libraries
+from platform import machine
+
 from qiskit import transpile
 import qiskit.providers
 from qiskit_ibm_runtime import SamplerV2 as Sampler, QiskitRuntimeService
@@ -186,20 +188,28 @@ class executeCircuitIBM:
 
     def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list, layout_fisico:list=None) -> dict:
         """
-        Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
+        Executes a circuit in the IBM cloud or locally, parsing V2 primitive results.
         """
+        x = int(shots)
 
         if machine == "local":
-            backend = AerSimulator()
-            x = int(shots)
-            # Aplicamos el layout si existe, incluso en simulación local para mantener coherencia
-            if layout_fisico is not None:
-                circuit = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
+            from qiskit_aer import AerSimulator
+            from qiskit_aer.noise import NoiseModel, depolarizing_error
+            from qiskit.primitives import BackendSamplerV2
+            
+            # 1. CREAR MODELO DE RUIDO (Simulando hardware NISQ)
+            noise_model = NoiseModel()
+            error_ruido = depolarizing_error(0.10, 1) # 10% de error para forzar a los centinelas
+            noise_model.add_all_qubit_quantum_error(error_ruido, ['x', 'h', 'measure', 'delay'])
+            
+            backend = AerSimulator(noise_model=noise_model)
+            
+            # Transpilamos sin layout físico para que AerSimulator no se queje
+            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
                 
-            job = backend.run(circuit, shots=x)
-            result = job.result()
-            counts = result.get_counts()
-            return counts
+            sampler = BackendSamplerV2(backend=backend)
+            job = sampler.run([qc_basis], shots=x)
+            
         else:
             # Load your IBM Quantum account
             service = self.service
@@ -207,12 +217,10 @@ class executeCircuitIBM:
             sampler = Sampler(mode=backend)
             
             with self.transpile_lock:
-                # AQUÍ ESTÁ LA CLAVE: Le pasamos a Qiskit los qubits físicos exactos que calculó tu BFS
                 if layout_fisico is not None:
                     qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
                 else:
                     qc_basis = transpile(circuit, backend=backend, optimization_level=0)
-            x = int(shots)
 
             while True:
                 with self.condition:   
@@ -223,74 +231,63 @@ class executeCircuitIBM:
                     else:
                         self.condition.wait()
 
+        # ====================================================================
+        # BLOQUE UNIFICADO DE PROCESAMIENTO (Para LOCAL e IBM real)
+        # ====================================================================
+        id = job.job_id() # Get the job id
+        provider = 'ibm'
+        user_shots = [shots] * len(circuit_names)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        ids_file = os.path.join(script_dir, 'ids.txt')
+        
+        with open(ids_file, 'a') as file:
+            file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
+            file.write('\n')
 
-            # -----------------------------------------------------#
-            id = job.job_id() # Get the job id
-            provider = 'ibm'
-            user_shots = [shots] * len(circuit_names)
-            script_dir = os.path.dirname(os.path.realpath(__file__))
-            ids_file = os.path.join(script_dir, 'ids.txt')  # create the path to the results file in the script's directory
-            with open(ids_file, 'a') as file:
-                file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
-                file.write('\n')
-            # Write the id in a file, along with the users, and their qubit numbers
-            # -----------------------------------------------------#
-
-            result = job.result()
+        result = job.result()
+        data_bin = result[0].data
+        
+        creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
+        
+        bitstrings_por_registro = {}
+        for name in creg_names:
+            bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
+        
+        counts_combinados = {}
+        
+        if creg_names:
+            primer_nombre = creg_names[0]
+            num_shots = len(bitstrings_por_registro[primer_nombre])
             
-
-            data_bin = result[0].data
+            registros_datos = [name for name in creg_names if name != 'c_flag']
             
-            # Buscar todos los nombres de registros clásicos válidos
-            creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
-            
-            bitstrings_por_registro = {}
-            for name in creg_names:
-                bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
-            
-            counts_combinados = {}
-            
-            if creg_names:
-                primer_nombre = creg_names[0]
-                num_shots = len(bitstrings_por_registro[primer_nombre])
-                
-                # Identificamos cuáles son los registros lógicos (ignorando el centinela)
-                registros_datos = [name for name in creg_names if name != 'c_flag']
-                
-                for i in range(num_shots):
-                    # 1. EL FILTRO FTQC: Si el centinela detectó ruido electromagnético ('1'), ABORTAMOS este shot.
-                    if 'c_flag' in creg_names and '1' in bitstrings_por_registro['c_flag'][i]:
-                        continue # El shot está corrupto. Lo descartamos en software.
-                        
-                    # 2. Si el entorno estaba limpio, extraemos los datos lógicos sin espacios
-                    # (Lo unimos sin espacios para que divideResults.py lo pueda cortar sin romperse)
-                    bitstring_completo = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
+            for i in range(num_shots):
+                # FILTRO FTQC
+                if 'c_flag' in creg_names and '1' in bitstrings_por_registro['c_flag'][i]:
+                    continue
                     
-                    if bitstring_completo in counts_combinados:
-                        counts_combinados[bitstring_completo] += 1
-                    else:
-                        counts_combinados[bitstring_completo] = 1
-                        
-            counts = counts_combinados
-            # -----------------------------------------------------#
-            # -----------------------------------------------------#
-            # -----------------------------------------------------#
+                bitstring_completo = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
+                
+                if bitstring_completo in counts_combinados:
+                    counts_combinados[bitstring_completo] += 1
+                else:
+                    counts_combinados[bitstring_completo] = 1
+                    
+        counts = counts_combinados
 
+        # Liberar la cola solo si estamos en hardware real
+        if machine != "local":
             with self.condition:
                 self.queued_jobs -= 1
                 self.condition.notify()
 
-            # -----------------------------------------------------#
+        # Limpiar el ID del archivo
+        with open(ids_file, 'r') as file:
+            lines = file.readlines()
+        with open(ids_file, 'w') as file:
+            for line in lines:
+                line_dict = json.loads(line.strip())
+                if list(line_dict.keys())[0] != id:
+                    file.write(line)
 
-            #Seach for the id in the file and delete the line
-            with open(ids_file, 'r') as file:
-                lines = file.readlines()
-            with open(ids_file, 'w') as file:
-                for line in lines:
-                    line_dict = json.loads(line.strip())
-                    if list(line_dict.keys())[0] != id:
-                        file.write(line)
-
-            # -----------------------------------------------------#
-
-            return counts
+        return counts

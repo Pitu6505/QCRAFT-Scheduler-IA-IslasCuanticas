@@ -105,7 +105,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -195,6 +195,7 @@ class SchedulerPolicies:
             
             # --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
 # --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
+# --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
             if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
                 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
                 
@@ -204,7 +205,7 @@ class SchedulerPolicies:
                 total_centinelas = 0
                 for mapping in layout_fisico:
                     if not isinstance(mapping['sentinel'], list):
-                        mapping['sentinel'] = [mapping['sentinel']] # Normalizamos a lista por seguridad
+                        mapping['sentinel'] = [mapping['sentinel']]
                     total_centinelas += len(mapping['sentinel'])
                 
                 # Creamos registros del tamaño exacto del escudo
@@ -213,55 +214,97 @@ class SchedulerPolicies:
                 
                 new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
                 
-                # 1. Preparación de los centinelas
-                idx = 0
-                for mapping in layout_fisico:
-                    modo = mapping.get('mode', 'standard')
-                    for _ in mapping['sentinel']: # Iteramos por cada centinela de la isla
-                        # Añadimos 'dd' a los modos que empiezan en superposición
-                        if modo in ['standard', 'robust', 'completo', 'dd']:
-                            new_qc.h(q_sentinel[idx])
-                        elif modo == 't1_decay':
-                            new_qc.x(q_sentinel[idx])
-                        idx += 1
+                # Comprobamos si el usuario ha pedido un circuito dinámico (Feed-Forward)
+                is_dynamic = any(mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
                 
-                new_qc.barrier()
-                
-                # 2. Inyección del circuito lógico
-                new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
-                
-                new_qc.barrier()
-                
-                # 3. Medición y reversión dinámica
-                idx = 0
-                for mapping in layout_fisico:
-                    modo = mapping.get('mode', 'standard')
-                    for _ in mapping['sentinel']:
+                if is_dynamic:
+                    # ==========================================================
+                    # ARQUITECTURA DE CIRCUITOS DINÁMICOS (MID-CIRCUIT MEASURE)
+                    # ==========================================================
+                    idx = 0
+                    for mapping in layout_fisico:
+                        modo = mapping.get('mode', 'standard')
+                        for _ in mapping['sentinel']:
+                            if modo == 'dynamic_t1':
+                                new_qc.x(q_sentinel[idx])
+                            elif modo == 'dynamic_ramsey':
+                                new_qc.h(q_sentinel[idx])
+                            idx += 1
+                    
+                    # Inyectamos un delay nativo para que el centinela escuche el entorno
+                    new_qc.delay(1000, q_sentinel, unit='ns') 
+                    new_qc.barrier()
+                    
+                    idx = 0
+                    for mapping in layout_fisico:
+                        modo = mapping.get('mode', 'standard')
+                        for _ in mapping['sentinel']:
+                            if modo == 'dynamic_t1':
+                                new_qc.x(q_sentinel[idx]) # Reversión para que 0 sea éxito
+                            elif modo == 'dynamic_ramsey':
+                                new_qc.h(q_sentinel[idx])
+                            new_qc.measure(q_sentinel[idx], c_flag[idx])
+                            idx += 1
+                    
+                    # LA MAGIA DEL FEED-FORWARD (Compuerta condicional en hardware)
+                    # Si todo el registro c_flag es 0 (limpio), inyectamos la lógica matemática.
+                    with new_qc.if_test((c_flag, 0)):
+                        new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
                         
-                        # === NUEVO MODO: Desacoplamiento Dinámico (Metralleta XY) ===
-                        if modo == 'dd':
-                            new_qc.x(q_sentinel[idx])
-                            new_qc.barrier(q_sentinel[idx]) # Forzamos la ejecución física
-                            new_qc.y(q_sentinel[idx])
-                            new_qc.barrier(q_sentinel[idx])
-                            new_qc.x(q_sentinel[idx])
-                            new_qc.barrier(q_sentinel[idx])
-                            new_qc.y(q_sentinel[idx])
-                            new_qc.h(q_sentinel[idx])
-                            
-                        # === MODOS ANTERIORES ===
-                        elif modo in ['robust', 'completo']:
-                            new_qc.x(q_sentinel[idx]) # Eco de Hahn
-                            new_qc.h(q_sentinel[idx])
-                        elif modo == 't1_decay':
-                            new_qc.x(q_sentinel[idx]) # Inversión para estandarizar 0=Éxito
-                        else: # standard
-                            new_qc.h(q_sentinel[idx])
-                            
-                        new_qc.measure(q_sentinel[idx], c_flag[idx])
-                        idx += 1
+                else:
+                    # ==========================================================
+                    # ARQUITECTURA CLÁSICA DE POST-SELECCIÓN GLOBAL
+                    # ==========================================================
+                    idx = 0
+                    for mapping in layout_fisico:
+                        modo = mapping.get('mode', 'standard')
+                        for _ in mapping['sentinel']: 
+                            if modo in ['standard', 'robust', 'completo', 'dd']:
+                                new_qc.h(q_sentinel[idx])
+                            elif modo == 't1_decay':
+                                new_qc.x(q_sentinel[idx])
+                            idx += 1
+                    
+                    new_qc.barrier()
+                    
+                    # Inyección incondicional del circuito lógico
+                    new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                    
+                    new_qc.barrier()
+                    
+                    idx = 0
+                    for mapping in layout_fisico:
+                        modo = mapping.get('mode', 'standard')
+                        for _ in mapping['sentinel']:
+                            if modo == 'dd':
+                                new_qc.x(q_sentinel[idx])
+                                new_qc.barrier(q_sentinel[idx])
+                                new_qc.y(q_sentinel[idx])
+                                new_qc.barrier(q_sentinel[idx])
+                                new_qc.x(q_sentinel[idx])
+                                new_qc.barrier(q_sentinel[idx])
+                                new_qc.y(q_sentinel[idx])
+                                new_qc.h(q_sentinel[idx])
+                            elif modo in ['robust', 'completo']:
+                                new_qc.x(q_sentinel[idx]) 
+                                new_qc.h(q_sentinel[idx])
+                            elif modo == 't1_decay':
+                                new_qc.x(q_sentinel[idx]) 
+                            else: 
+                                new_qc.h(q_sentinel[idx])
+                                
+                            new_qc.measure(q_sentinel[idx], c_flag[idx])
+                            idx += 1
                     
                 loc['circuit'] = new_qc
+                
+                # === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
+                print("\n" + "="*60)
+                print(f" ESTRUCTURA DEL CIRCUITO DINÁMICO ({total_centinelas} Sensores)")
+                print("="*60)
+                # fold=-1 evita que el dibujo se corte y salte de línea, mostrándolo entero
+                print(new_qc.draw(output='text', fold=-1)) 
+                print("="*60 + "\n")
                 
                 # 4. Aplanar el layout físico
                 datos_planos = []
@@ -271,7 +314,8 @@ class SchedulerPolicies:
                     centinelas_planos.extend(mapping['sentinel'])
                 
                 layout_fisico = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo: {layout_fisico[0] if isinstance(layout_fisico[0], str) else 'Mix'}). Layout final: {layout_fisico}")
+                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {is_dynamic}). Layout final: {layout_fisico}")
+            # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
