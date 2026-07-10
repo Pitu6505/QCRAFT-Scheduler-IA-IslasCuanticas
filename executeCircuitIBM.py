@@ -233,8 +233,10 @@ class executeCircuitIBM:
 
         # ====================================================================
         # BLOQUE UNIFICADO DE PROCESAMIENTO (Para LOCAL e IBM real)
+# ====================================================================
+        # BLOQUE UNIFICADO DE PROCESAMIENTO (Para LOCAL e IBM real)
         # ====================================================================
-        id = job.job_id() # Get the job id
+        id = job.job_id()
         provider = 'ibm'
         user_shots = [shots] * len(circuit_names)
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -248,30 +250,56 @@ class executeCircuitIBM:
         data_bin = result[0].data
         
         creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
-        
-        bitstrings_por_registro = {}
-        for name in creg_names:
-            bitstrings_por_registro[name] = getattr(data_bin, name).get_bitstrings()
-        
+        bitstrings_por_registro = {name: getattr(data_bin, name).get_bitstrings() for name in creg_names}
         counts_combinados = {}
         
         if creg_names:
             primer_nombre = creg_names[0]
             num_shots = len(bitstrings_por_registro[primer_nombre])
             
-            registros_datos = [name for name in creg_names if name != 'c_flag']
+            # Buscamos los registros de datos puros (ignorando todos los chivatos)
+            registros_datos = [name for name in creg_names if not name.startswith('c_flag')]
             
             for i in range(num_shots):
-                # FILTRO FTQC
+                # 1. Filtro Global (Para los modos robusto, t1_decay, dd, etc.)
                 if 'c_flag' in creg_names and '1' in bitstrings_por_registro['c_flag'][i]:
                     continue
                     
-                bitstring_completo = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
+                # 2. Filtro Local Independiente (Para el modo dynamic_local)
+                island_validity = []
+                for j in range(len(qubit_number)):
+                    flag_name = f'c_flag_{j}'
+                    if flag_name in creg_names and '1' in bitstrings_por_registro[flag_name][i]:
+                        island_validity.append(False) # Isla j abortada por ruido
+                    else:
+                        island_validity.append(True)  # Isla j limpia
                 
-                if bitstring_completo in counts_combinados:
-                    counts_combinados[bitstring_completo] += 1
+                # Si TODAS las islas se abortaron en este shot, no procesamos nada
+                if not any(island_validity):
+                    continue
+                    
+                raw_bitstring = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
+                
+                # Enmascaramiento de las islas corruptas con 'X'
+                parts = []
+                current_idx = len(raw_bitstring)
+                for j, num_bits in enumerate(qubit_number):
+                    start = current_idx - num_bits
+                    end = current_idx
+                    
+                    if island_validity[j]:
+                        parts.insert(0, raw_bitstring[start:end]) # Datos reales
+                    else:
+                        parts.insert(0, 'X' * num_bits) # Datos corruptos enmascarados
+                        
+                    current_idx -= num_bits
+                    
+                bitstring_final = "".join(parts)
+                
+                if bitstring_final in counts_combinados:
+                    counts_combinados[bitstring_final] += 1
                 else:
-                    counts_combinados[bitstring_completo] = 1
+                    counts_combinados[bitstring_final] = 1
                     
         counts = counts_combinados
 

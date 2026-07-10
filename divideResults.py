@@ -71,6 +71,10 @@ def divideResults(counts:dict, shots:list, provider:str, qb:list, users:list, ci
             else:
                 data = key[leftRemovedQubits:]  #Data is the custom value of each user
                 data = data[:(len(data)-rightRemovedQubits)]
+
+            # ==== NUEVO FILTRO LOCAL ====
+            if 'X' in data:
+                continue # Esta isla fue abortada en este shot, no la sumamos
             
             if data in newCounts:
                 newCounts[data] += value

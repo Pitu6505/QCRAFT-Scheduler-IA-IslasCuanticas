@@ -201,53 +201,105 @@ class SchedulerPolicies:
                 
                 qc_original = loc['circuit']
                 
-                # Contamos cuántos centinelas hay en total sumando las fronteras de todas las islas
-                total_centinelas = 0
-                for mapping in layout_fisico:
-                    if not isinstance(mapping['sentinel'], list):
-                        mapping['sentinel'] = [mapping['sentinel']]
-                    total_centinelas += len(mapping['sentinel'])
+                is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+                is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
                 
-                # Creamos registros del tamaño exacto del escudo
-                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
-                c_flag = ClassicalRegister(total_centinelas, 'c_flag')
-                
-                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
-                
-                # Comprobamos si el usuario ha pedido un circuito dinámico (Feed-Forward)
-                is_dynamic = any(mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
-                
-                if is_dynamic:
+                if is_dynamic_local:
                     # ==========================================================
-                    # ARQUITECTURA DE CIRCUITOS DINÁMICOS (MID-CIRCUIT MEASURE)
+                    # ARQUITECTURA DE FEED-FORWARD LOCAL (INDEPENDIENTE)
                     # ==========================================================
+                    c_flags = []
+                    total_centinelas = 0
+                    for i, mapping in enumerate(layout_fisico):
+                        sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                        c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
+                        total_centinelas += len(sents)
+                        
+                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
+                    
+                    # 1. Preparación conjunta
                     idx = 0
                     for mapping in layout_fisico:
                         modo = mapping.get('mode', 'standard')
-                        for _ in mapping['sentinel']:
-                            if modo == 'dynamic_t1':
+                        for _ in (mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                            if modo == 'dynamic_local_t1':
                                 new_qc.x(q_sentinel[idx])
-                            elif modo == 'dynamic_ramsey':
+                            elif modo == 'dynamic_local_ramsey':
                                 new_qc.h(q_sentinel[idx])
                             idx += 1
+                            
+                    new_qc.delay(1000, q_sentinel, unit='ns')
+                    new_qc.barrier()
                     
-                    # Inyectamos un delay nativo para que el centinela escuche el entorno
+                    # 2. Medición separada por islas
+                    idx = 0
+                    for i, mapping in enumerate(layout_fisico):
+                        modo = mapping.get('mode', 'standard')
+                        for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                            if modo == 'dynamic_local_t1':
+                                new_qc.x(q_sentinel[idx])
+                            elif modo == 'dynamic_local_ramsey':
+                                new_qc.h(q_sentinel[idx])
+                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                            idx += 1
+                            
+                    # 3. SEPARADOR DE INSTRUCCIONES (El Bisturí de Qiskit)
+                    island_instructions = {i: [] for i in range(len(layout_fisico))}
+                    island_ranges = {}
+                    current_offset = 0
+                    
+                    # Calculamos qué qubits lógicos pertenecen a qué isla
+                    for i, m in enumerate(layout_fisico):
+                        size = len(m['data'])
+                        island_ranges[i] = range(current_offset, current_offset + size)
+                        current_offset += size
+                        
+                    # Clasificamos cada puerta lógica del circuito original
+                    for inst in qc_original.data:
+                        if inst.qubits:
+                            # Miramos el índice del qubit al que afecta esta puerta
+                            q_idx = qc_original.find_bit(inst.qubits[0]).index
+                            for i, r in island_ranges.items():
+                                if q_idx in r:
+                                    island_instructions[i].append(inst)
+                                    break
+                                    
+                    # 4. COMPUERTAS CONDICIONALES INDEPENDIENTES
+                    for i in range(len(layout_fisico)):
+                        with new_qc.if_test((c_flags[i], 0)):
+                            for inst in island_instructions[i]:
+                                new_qc.append(inst) # Inyectamos la puerta dentro del IF de su isla
+                        
+                elif is_dynamic_global:
+                    # ==========================================================
+                    # ARQUITECTURA DE FEED-FORWARD GLOBAL
+                    # ==========================================================
+                    total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
+                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                    c_flag = ClassicalRegister(total_centinelas, 'c_flag')
+                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
+                    
+                    idx = 0
+                    for m in layout_fisico:
+                        modo = m.get('mode', 'standard')
+                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                            if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
+                            elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
+                            idx += 1
+                    
                     new_qc.delay(1000, q_sentinel, unit='ns') 
                     new_qc.barrier()
                     
                     idx = 0
-                    for mapping in layout_fisico:
-                        modo = mapping.get('mode', 'standard')
-                        for _ in mapping['sentinel']:
-                            if modo == 'dynamic_t1':
-                                new_qc.x(q_sentinel[idx]) # Reversión para que 0 sea éxito
-                            elif modo == 'dynamic_ramsey':
-                                new_qc.h(q_sentinel[idx])
+                    for m in layout_fisico:
+                        modo = m.get('mode', 'standard')
+                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                            if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
+                            elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
                             new_qc.measure(q_sentinel[idx], c_flag[idx])
                             idx += 1
-                    
-                    # LA MAGIA DEL FEED-FORWARD (Compuerta condicional en hardware)
-                    # Si todo el registro c_flag es 0 (limpio), inyectamos la lógica matemática.
+                            
                     with new_qc.if_test((c_flag, 0)):
                         new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
                         
@@ -255,27 +307,27 @@ class SchedulerPolicies:
                     # ==========================================================
                     # ARQUITECTURA CLÁSICA DE POST-SELECCIÓN GLOBAL
                     # ==========================================================
+                    total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
+                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                    c_flag = ClassicalRegister(total_centinelas, 'c_flag')
+                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
+                    
                     idx = 0
-                    for mapping in layout_fisico:
-                        modo = mapping.get('mode', 'standard')
-                        for _ in mapping['sentinel']: 
-                            if modo in ['standard', 'robust', 'completo', 'dd']:
-                                new_qc.h(q_sentinel[idx])
-                            elif modo == 't1_decay':
-                                new_qc.x(q_sentinel[idx])
+                    for m in layout_fisico:
+                        modo = m.get('mode', 'standard')
+                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
+                            if modo in ['standard', 'robust', 'completo', 'dd']: new_qc.h(q_sentinel[idx])
+                            elif modo == 't1_decay': new_qc.x(q_sentinel[idx])
                             idx += 1
                     
                     new_qc.barrier()
-                    
-                    # Inyección incondicional del circuito lógico
                     new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
-                    
                     new_qc.barrier()
                     
                     idx = 0
-                    for mapping in layout_fisico:
-                        modo = mapping.get('mode', 'standard')
-                        for _ in mapping['sentinel']:
+                    for m in layout_fisico:
+                        modo = m.get('mode', 'standard')
+                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
                             if modo == 'dd':
                                 new_qc.x(q_sentinel[idx])
                                 new_qc.barrier(q_sentinel[idx])
@@ -286,19 +338,15 @@ class SchedulerPolicies:
                                 new_qc.y(q_sentinel[idx])
                                 new_qc.h(q_sentinel[idx])
                             elif modo in ['robust', 'completo']:
-                                new_qc.x(q_sentinel[idx]) 
-                                new_qc.h(q_sentinel[idx])
-                            elif modo == 't1_decay':
-                                new_qc.x(q_sentinel[idx]) 
-                            else: 
-                                new_qc.h(q_sentinel[idx])
-                                
+                                new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                            elif modo == 't1_decay': new_qc.x(q_sentinel[idx]) 
+                            else: new_qc.h(q_sentinel[idx])
                             new_qc.measure(q_sentinel[idx], c_flag[idx])
                             idx += 1
                     
                 loc['circuit'] = new_qc
-                
-                # === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
+
+                 # === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
                 print("\n" + "="*60)
                 print(f" ESTRUCTURA DEL CIRCUITO DINÁMICO ({total_centinelas} Sensores)")
                 print("="*60)
@@ -311,10 +359,12 @@ class SchedulerPolicies:
                 centinelas_planos = []
                 for mapping in layout_fisico:
                     datos_planos.extend(mapping['data'])
-                    centinelas_planos.extend(mapping['sentinel'])
+                    sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                    centinelas_planos.extend(sents)
                 
                 layout_fisico = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {is_dynamic}). Layout final: {layout_fisico}")
+                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {'Local' if is_dynamic_local else 'Global' if is_dynamic_global else 'Falso'}). Layout final: {layout_fisico}")
+                # print(new_qc.draw(output='text', fold=-1)) # Descomenta para ver la maravilla en consola
             # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
             # --- FIN DEL ENSAMBLADOR ---
