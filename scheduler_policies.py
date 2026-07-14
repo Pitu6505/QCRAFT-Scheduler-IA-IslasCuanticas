@@ -206,7 +206,7 @@ class SchedulerPolicies:
                 
                 if is_dynamic_local:
                     # ==========================================================
-                    # ARQUITECTURA DE FEED-FORWARD LOCAL (INDEPENDIENTE)
+                    # ARQUITECTURA DE FEED-FORWARD LOCAL (MEDICIÓN A MITAD DE CIRCUITO)
                     # ==========================================================
                     c_flags = []
                     total_centinelas = 0
@@ -218,7 +218,7 @@ class SchedulerPolicies:
                     q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
                     new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
                     
-                    # 1. Preparación conjunta
+                    # 1. Preparación conjunta (Armamos los centinelas al inicio)
                     idx = 0
                     for mapping in layout_fisico:
                         modo = mapping.get('mode', 'standard')
@@ -229,10 +229,33 @@ class SchedulerPolicies:
                                 new_qc.h(q_sentinel[idx])
                             idx += 1
                             
-                    new_qc.delay(1000, q_sentinel, unit='ns')
+                    # 2. SEPARADOR DE INSTRUCCIONES (El Bisturí de Qiskit)
+                    island_instructions = {i: [] for i in range(len(layout_fisico))}
+                    island_ranges = {}
+                    current_offset = 0
+                    
+                    for i, m in enumerate(layout_fisico):
+                        size = len(m['data'])
+                        island_ranges[i] = range(current_offset, current_offset + size)
+                        current_offset += size
+                        
+                    for inst in qc_original.data:
+                        if inst.qubits:
+                            q_idx = qc_original.find_bit(inst.qubits[0]).index
+                            for i, r in island_ranges.items():
+                                if q_idx in r:
+                                    island_instructions[i].append(inst)
+                                    break
+                                    
+                    # 3. EJECUCIÓN DE LA PRIMERA MITAD (Tiempo de exposición real)
+                    for i in range(len(layout_fisico)):
+                        mitad = len(island_instructions[i]) // 2
+                        for inst in island_instructions[i][:mitad]:
+                            new_qc.append(inst)
+                            
                     new_qc.barrier()
                     
-                    # 2. Medición separada por islas
+                    # 4. MEDICIÓN A MITAD DE CIRCUITO (MCM)
                     idx = 0
                     for i, mapping in enumerate(layout_fisico):
                         modo = mapping.get('mode', 'standard')
@@ -244,32 +267,12 @@ class SchedulerPolicies:
                             new_qc.measure(q_sentinel[idx], c_flags[i][j])
                             idx += 1
                             
-                    # 3. SEPARADOR DE INSTRUCCIONES (El Bisturí de Qiskit)
-                    island_instructions = {i: [] for i in range(len(layout_fisico))}
-                    island_ranges = {}
-                    current_offset = 0
-                    
-                    # Calculamos qué qubits lógicos pertenecen a qué isla
-                    for i, m in enumerate(layout_fisico):
-                        size = len(m['data'])
-                        island_ranges[i] = range(current_offset, current_offset + size)
-                        current_offset += size
-                        
-                    # Clasificamos cada puerta lógica del circuito original
-                    for inst in qc_original.data:
-                        if inst.qubits:
-                            # Miramos el índice del qubit al que afecta esta puerta
-                            q_idx = qc_original.find_bit(inst.qubits[0]).index
-                            for i, r in island_ranges.items():
-                                if q_idx in r:
-                                    island_instructions[i].append(inst)
-                                    break
-                                    
-                    # 4. COMPUERTAS CONDICIONALES INDEPENDIENTES
+                    # 5. COMPUERTAS CONDICIONALES (La otra mitad protegida)
                     for i in range(len(layout_fisico)):
+                        mitad = len(island_instructions[i]) // 2
                         with new_qc.if_test((c_flags[i], 0)):
-                            for inst in island_instructions[i]:
-                                new_qc.append(inst) # Inyectamos la puerta dentro del IF de su isla
+                            for inst in island_instructions[i][mitad:]:
+                                new_qc.append(inst)
                         
                 elif is_dynamic_global:
                     # ==========================================================
