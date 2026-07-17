@@ -105,7 +105,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -203,6 +203,7 @@ class SchedulerPolicies:
                 
                 is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
                 is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+                is_post_selection_local = any(mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
                 
                 if is_dynamic_local:
                     # ==========================================================
@@ -305,7 +306,62 @@ class SchedulerPolicies:
                             
                     with new_qc.if_test((c_flag, 0)):
                         new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                elif is_post_selection_local:
+                    # ==========================================================
+                    # ARQUITECTURA DE POST-SELECCIÓN LOCAL (Descarte por Isla)
+                    # ==========================================================
+                    c_flags = []
+                    total_centinelas = 0
+                    for i, mapping in enumerate(layout_fisico):
+                        sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                        # Creamos un registro clásico independiente para cada isla
+                        c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
+                        total_centinelas += len(sents)
                         
+                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
+                    
+                    # 1. Inicialización de los centinelas
+                    idx = 0
+                    for m in layout_fisico:
+                        modo = m.get('mode', 'standard')
+                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
+                            if 't1_decay' in modo: 
+                                new_qc.x(q_sentinel[idx])
+                            else: 
+                                # Aplica a completo_local, robust_local, dd_local, standard_local
+                                new_qc.h(q_sentinel[idx]) 
+                            idx += 1
+                    
+                    new_qc.barrier()
+                    
+                    # 2. Ejecución de los circuitos maestros
+                    new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                    new_qc.barrier()
+                    
+                    # 3. Cierre y medición (Física individualizada por modo)
+                    idx = 0
+                    for i, m in enumerate(layout_fisico):
+                        modo = m.get('mode', 'standard')
+                        for j, _ in enumerate(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                            if 'dd' in modo:
+                                # Secuencia de Desacoplamiento Dinámico
+                                new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                                new_qc.y(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                                new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                                new_qc.y(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                            elif 'robust' in modo or 'completo' in modo:
+                                # Secuencia de Eco de Hahn
+                                new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                            elif 't1_decay' in modo:
+                                # Secuencia de Recuperación de Inversión
+                                new_qc.x(q_sentinel[idx])
+                            else: 
+                                # Secuencia de Interferometría de Ramsey (standard_local)
+                                new_qc.h(q_sentinel[idx])
+                                
+                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                            idx += 1
                 else:
                     # ==========================================================
                     # ARQUITECTURA CLÁSICA DE POST-SELECCIÓN GLOBAL
