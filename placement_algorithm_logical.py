@@ -109,8 +109,7 @@ def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sent
                                 candidatos_centinela.append(vecino)
             
             if candidatos_centinela:
-                if sentinel_mode == "completo":
-                    # MODO JAULA: Cogemos todo el perímetro protector
+                if "completo" in sentinel_mode:  # 🔑 CAMBIAMOS EL '==' POR 'in'                    # MODO JAULA: Cogemos todo el perímetro protector
                     centinelas = candidatos_centinela
                 else:
                     # MODO NORMAL: Cogemos solo el más silencioso

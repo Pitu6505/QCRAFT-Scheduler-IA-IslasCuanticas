@@ -105,7 +105,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -405,7 +405,7 @@ class SchedulerPolicies:
                     
                 loc['circuit'] = new_qc
 
-                 # === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
+# === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
                 print("\n" + "="*60)
                 print(f" ESTRUCTURA DEL CIRCUITO DINÁMICO ({total_centinelas} Sensores)")
                 print("="*60)
@@ -413,7 +413,10 @@ class SchedulerPolicies:
                 print(new_qc.draw(output='text', fold=-1)) 
                 print("="*60 + "\n")
                 
-                # 4. Aplanar el layout físico
+                # 🔑 GUARDAMOS EL LAYOUT ORIGINAL ESTRUCTURADO ANTES DE APLANARLO
+                layout_fisico_estructurado = layout_fisico.copy()
+                
+                # 4. Aplanar el layout físico para poder mandárselo a IBM/Aer
                 datos_planos = []
                 centinelas_planos = []
                 for mapping in layout_fisico:
@@ -421,16 +424,11 @@ class SchedulerPolicies:
                     sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
                     centinelas_planos.extend(sents)
                 
-                layout_fisico = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {'Local' if is_dynamic_local else 'Global' if is_dynamic_global else 'Falso'}). Layout final: {layout_fisico}")
-                # print(new_qc.draw(output='text', fold=-1)) # Descomenta para ver la maravilla en consola
-            # --- FIN DEL ENSAMBLADOR ---
-            # --- FIN DEL ENSAMBLADOR ---
-            # --- FIN DEL ENSAMBLADOR ---
-            # --- FIN DEL ENSAMBLADOR ---
-
+                layout_fisico_plano = datos_planos + centinelas_planos
+                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {'Local' if is_dynamic_local else 'Global' if is_dynamic_global else 'Post-selección Local' if is_post_selection_local else 'Post-selección Global'}). Layout final: {layout_fisico_plano}")
+            
             if layout_fisico is not None:
-                print(f"🟦 Usando layout físico plano: {layout_fisico}")
+                print(f"🟦 Usando layout físico plano: {layout_fisico_plano}")
         else:
             loc['circuit'] = code_to_circuit_aws(circuit)
 
@@ -441,10 +439,9 @@ class SchedulerPolicies:
             if provider == 'ibm':
                 # Validar tamaño del layout
                 if layout_fisico is not None:
-                    if len(layout_fisico) != loc['circuit'].num_qubits:
-                        print(f"⚠️ Layout inválido: {len(layout_fisico)} qubits en layout, "
-                            f"pero el circuito tiene {loc['circuit'].num_qubits}")
-                        layout_fisico = None  # Ignorar layout inválido
+                    if len(layout_fisico_plano) != loc['circuit'].num_qubits:
+                        print(f"⚠️ Layout inválido: {len(layout_fisico_plano)} qubits en layout, pero el circuito tiene {loc['circuit'].num_qubits}")
+                        layout_fisico_plano = None 
 
                 if layout_fisico is not None:
                     counts = self.executeCircuitIBM.runIBM_save(
@@ -454,7 +451,8 @@ class SchedulerPolicies:
                         [url[3] for url in urls],
                         qb,
                         [url[4] for url in urls],
-                        layout_fisico
+                        # Le mandamos a IBM el plano para que ejecute
+                        layout_fisico_plano 
                     )
                 else:
                     counts = self.executeCircuitIBM.runIBM_save(
@@ -473,26 +471,34 @@ class SchedulerPolicies:
                     [url[3] for url in urls],
                     qb,
                     [url[4] for url in urls],
-                    layout_fisico  # 🔑 Pasar el layout físico
+                    layout_fisico_plano 
                 )
 
         except Exception as e:
             print(f"❌ Error executing circuit: {e}")
 
         # Evitar fallo si counts es None
+# Evitar fallo si counts es None
         if counts is not None:
-            # print(counts.items())  # Opcional: comentar esta línea para que la consola esté más limpia
+            
+            # 🔑 RECUPERAMOS EL MODO DIRECTAMENTE DEL LAYOUT ANTES DEL JSON
+            modo_inferido = "Sin_Centinela"
+            if layout_fisico is not None and len(layout_fisico) > 0 and isinstance(layout_fisico[0], dict):
+                modo_inferido = layout_fisico[0].get('mode', 'Sin_Centinela')
+                
+            # 🔑 ASEGURAMOS QUE SE ENVÍA LA VERSIÓN ESTRUCTURADA SI EXISTE
+            layout_final = layout_fisico_estructurado if 'layout_fisico_estructurado' in locals() and layout_fisico_estructurado is not None else layout_fisico
 
             data = {
-                "id": "Simulacion", # Añadido para que el request no esté vacío en local
+                "id": "Simulacion", 
                 "counts": counts,
                 "shots": shots,
                 "provider": provider,
                 "qb": qb,
                 "users": [url[3] for url in urls],
                 "circuit_names": [url[4] for url in urls],
-                "layout_fisico": layout_fisico,
-                "modo": "Simulado"
+                "layout_fisico": layout_final, 
+                "modo": modo_inferido 
             }
             requests.post(self.unscheduler, json=data)
         else:
