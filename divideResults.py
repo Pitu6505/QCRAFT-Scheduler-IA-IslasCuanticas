@@ -1,95 +1,66 @@
 from unittest import result
-
 import numpy as np
+from logger_metricas import registrar_metrica_csv
 
 def proportionalAllocation(total_shots:int,newCounts:dict,usershots:list) -> dict:
-    """
-    Applies proportional allocation to the results of a circuit execution.
-
-    Args:
-        total_shots (int): The total number of shots of the circuit execution.        
-        newCounts (dict): The results of the circuit execution.        
-        usershots (list): The number of shots to divide among the users.
-    
-    Returns:
-        dict: The results of the circuit execution divided among the users.
-    """
     proportions = {key: value / total_shots for key, value in newCounts.items()}
-    # Calculate the number of shots to allocate to each key
-    allocated_shots = {key: round(proportions[key] * usershots) for key in proportions.keys()} # round(...) or int(...). int is faster but round is more accurate
-    # Create a new dictionary to store the counts of the allocated shots
+    allocated_shots = {key: round(proportions[key] * usershots) for key in proportions.keys()} 
     selected_counts = {key: allocated_shots[key] for key in allocated_shots.keys() if allocated_shots[key] > 0}
     return selected_counts
 
 def stratifiedSampling(total_shots:int,newCounts:dict,usershots:list) -> dict:
-    """
-    Applies stratified sampling to the results of a circuit execution.
-
-    Args:
-        total_shots (int): The total number of shots of the circuit execution.        
-        newCounts (dict): The results of the circuit execution.        
-        usershots (list): The number of shots to divide among the users.
-    
-    Returns:
-        dict: The results of the circuit execution divided among the users.
-    """
     keys = list(newCounts.keys())
     probabilities = [value / total_shots for value in newCounts.values()]
-    # Sample from the keys based on their probabilities
-    sampled_keys = np.random.choice(keys, size=usershots, replace=True, p=probabilities) #This uses numpy instead of doing it manually to make it more readable
-    # Create a new dictionary to store the counts of the sampled keys
+    sampled_keys = np.random.choice(keys, size=usershots, replace=True, p=probabilities) 
     selected_counts = {key: np.count_nonzero(sampled_keys == key) for key in keys}
     return selected_counts
 
-def divideResults(counts:dict, shots:list, provider:str, qb:list, users:list, circuit_name:list) -> list:
-    """
-    Divides the results of a circuit execution among the users that executed it.
-
-    Args:
-        counts (dict): The results of the circuit execution.        
-        shots (list): The number of shots of each user.        
-        provider (str): The provider of the circuit execution.        
-        qb (list): The number of qubits of the circuit.        
-        users (list): The users that executed the circuit.        
-        circuit_name (list): The name of the circuit that was executed.
-    
-    Returns:
-        list: The results of the circuit execution divided among the users.
-    """
+def divideResults(id_job:str, counts:dict, shots:list, provider:str, qb:list, users:list, circuit_name:list, layout_fisico:list=None, modo_inferido:str="Desconocido") -> list:
     result = []
     for i in range(len(shots)):
         
         newCounts = {}
 
-        for key, value in counts.items(): #Reducing each dictionary so that it contains the useful part of each user
-            rightRemovedQubits = sum(qb[0:i])  #Values to remove from the right
-            leftRemovedQubits = sum(qb[i+1:len(qb)])  #Values to remove from the left
+        for key, value in counts.items():
+            rightRemovedQubits = sum(qb[0:i])  
+            leftRemovedQubits = sum(qb[i+1:len(qb)])  
             if provider == 'aws':
-                data = key[rightRemovedQubits:]  #Data is the custom value of each user
+                data = key[rightRemovedQubits:]  
                 data = data[:(len(data)-leftRemovedQubits)]
-                data = data[::-1] #AWS gives the results backwards compared to IBM, to have a standard, the result is reversed
+                data = data[::-1] 
             else:
-                data = key[leftRemovedQubits:]  #Data is the custom value of each user
+                data = key[leftRemovedQubits:] 
                 data = data[:(len(data)-rightRemovedQubits)]
 
-            # ==== NUEVO FILTRO LOCAL ====
             if 'X' in data:
-                continue # Esta isla fue abortada en este shot, no la sumamos
+                continue 
             
             if data in newCounts:
                 newCounts[data] += value
             else:
                 newCounts[data] = value
 
-        # Calculate the total number of shots
         total_shots = sum(newCounts.values())
-        
-        # 🛑 APAGAMOS EL RELLENO ARTIFICIAL (STRATIFIED SAMPLING)
-        # Para registrar la eficacia del FTQC, devolvemos los datos puros podados.
         selected_counts = newCounts
 
-        # Imprimimos por consola cuántos shots han sobrevivido al filtro de ruido
         print(f"🛡️ [{users[i]}] - Circuit: {circuit_name[i]} | Shots válidos: {total_shots}/{shots[i]} ({(total_shots/shots[i])*100:.2f}%)") 
+        
+        qubits_datos = "N/A"
+        qubits_centinelas = "N/A"
+        
+        if layout_fisico and i < len(layout_fisico) and isinstance(layout_fisico[i], dict):
+            qubits_datos = layout_fisico[i].get('data', "N/A")
+            qubits_centinelas = layout_fisico[i].get('sentinel', "N/A")
+            
+        registrar_metrica_csv(
+            job_id=id_job,
+            nombre_circuito=circuit_name[i],
+            qubits_datos=qubits_datos,
+            qubits_centinela=qubits_centinelas,
+            modo=modo_inferido,
+            shots_totales=shots[i],
+            shots_validos=total_shots
+        )
         
         result.append({(users[i],circuit_name[i]):selected_counts})
 

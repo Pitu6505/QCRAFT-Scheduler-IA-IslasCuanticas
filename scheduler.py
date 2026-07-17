@@ -97,14 +97,10 @@ class Scheduler:
         print('hecho')
         self.app.run(host='0.0.0.0', port=self.app.config['PORT'], debug=False)
 
+
     def handle_line(self, line:str,ids_file:str,lock:Lock) -> None:
         """
         Handle the line of the file with the ids to retrieve the result of pending tasks
-
-        Args:
-            line (str): The line of the file            
-            ids_file (str): The file with the ids            
-            lock (Lock): The lock for the file
         """
         fdata = json.loads(line)
         id = list(fdata.keys())[0]
@@ -112,22 +108,28 @@ class Scheduler:
         qubit_number = fdata[id][1]
         shots = fdata[id][2]
         provider = fdata[id][3]
+        circuit_names = fdata[id][4]
+        
+        # 🔑 EXTRAEMOS LA INFO FÍSICA GUARDADA ANTES
+        layout_fisico = fdata[id][5] if len(fdata[id]) > 5 else None
+        modo_inferido = fdata[id][6] if len(fdata[id]) > 6 else "Desconocido"
+
         if provider == 'ibm':
             counts = self.executeCircuitIBM.retrieve_result_ibm(id) 
         elif provider == 'aws':
             counts = retrieve_result_aws(id)
-        circuit_names = fdata[id][4]
-        self.unscheduler(counts,shots,provider,qubit_number,users,circuit_names)
-        # Delete that element from the file
+            
+        # 🔑 PASAMOS LOS NUEVOS PARÁMETROS
+        self.unscheduler(id, counts, shots, provider, qubit_number, users, circuit_names, layout_fisico, modo_inferido)
+        
         with lock:
-            #ids.append(id) # TODO if the file is not edited here and the machine crashes before all threads finish, it could potentially lead to data duplication. However, editing the file only once (after thread.join) is more efficient
             with open(ids_file, 'r') as file:
                 lines = file.readlines()
             with open(ids_file, 'w') as file:
-                for line in lines:
-                    line_dict = json.loads(line.strip())
+                for line_str in lines:
+                    line_dict = json.loads(line_str.strip())
                     if list(line_dict.keys())[0] != id:
-                        file.write(line)
+                        file.write(line_str)
 
     def check_ids(self) -> None:
         """
@@ -174,48 +176,28 @@ class Scheduler:
         data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider , "Iteracion": 1, "sentinel_mode": sentinel_mode} # Modificaco aqui la cola para la prioridad 
         requests.post(self.policy_service+policy, json=data)
         
-
     def unschedule_route(self) -> tuple:
         """
         Route to unschedule a circuit
-
-        Returns:
-            tuple: The response of the unscheduler
         """
         data = request.get_json()
-        self.unscheduler(data['counts'], data['shots'], data['provider'], data['qb'], data['users'], data['circuit_names'])
+        self.unscheduler(data.get('id', 'Manual'), data['counts'], data['shots'], data['provider'], data['qb'], data['users'], data['circuit_names'], data.get('layout_fisico'), data.get('modo', 'Desconocido'))
         return jsonify({'status': 'success'}), 200
 
-    def unscheduler(self, counts:dict, shots:int, provider:str, qb:list, users:list, circuit_names:list) -> tuple:
+    def unscheduler(self, id_job:str, counts:dict, shots:int, provider:str, qb:list, users:list, circuit_names:list, layout_fisico:list=None, modo_inferido:str="Desconocido") -> tuple:
         """
         Unschedule a circuit
-
-        Args:
-            counts (dict): The results of the circuit execution            
-            shots (int): The number of shots that the circuit was executed            
-            provider (str): The provider of the circuit execution            
-            qb (list): The number of qubits of the circuit            
-            users (list): The users that executed the circuit            
-            circuit_names (list): The name of the circuit that was executed
-
-        Returns:
-            tuple: The response of the unscheduler
         """
+        results = divideResults(id_job, counts, shots, provider, qb, users, circuit_names, layout_fisico, modo_inferido)
 
-        results = divideResults(counts,shots,provider,qb,users,circuit_names)
-
-        #Save the content of results in a file   
         for dividedResult in results:
             for key, value in dividedResult.items():
-                # Split the key into the id and the circuit name
                 id, circuit_name = key
-                # Create the update document
                 update = {'$inc': {'value.' + k: v for k, v in value.items()}}
-                # Upsert the document, Quitar esto
-                with self.result_lock: #In the case provider is both so the data retrieval is done after the first update finishes
+                with self.result_lock: 
                     self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
 
-        return "Results stored successfully", 200  # Return a response
+        return "Results stored successfully", 200
 
     def store_url(self) -> tuple: # TODO instead of "both", use a list of providers as an input
         """

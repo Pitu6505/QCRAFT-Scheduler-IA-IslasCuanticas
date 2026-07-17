@@ -105,7 +105,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -484,14 +484,16 @@ class SchedulerPolicies:
             # print(counts.items())  # Opcional: comentar esta línea para que la consola esté más limpia
 
             data = {
+                "id": "Simulacion", # Añadido para que el request no esté vacío en local
                 "counts": counts,
                 "shots": shots,
                 "provider": provider,
                 "qb": qb,
                 "users": [url[3] for url in urls],
-                "circuit_names": [url[4] for url in urls]
+                "circuit_names": [url[4] for url in urls],
+                "layout_fisico": layout_fisico,
+                "modo": "Simulado"
             }
-
             requests.post(self.unscheduler, json=data)
         else:
             print("⚠️ No se obtuvieron resultados de ejecución (counts = None)")

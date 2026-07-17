@@ -4,6 +4,7 @@
 # import libraries
 from platform import machine
 
+from psutil import users
 from qiskit import transpile
 import qiskit.providers
 from qiskit_ibm_runtime import SamplerV2 as Sampler, QiskitRuntimeService
@@ -242,10 +243,16 @@ class executeCircuitIBM:
         script_dir = os.path.dirname(os.path.realpath(__file__))
         ids_file = os.path.join(script_dir, 'ids.txt')
         
-        with open(ids_file, 'a') as file:
-            file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
-            file.write('\n')
+        # Recuperar el nombre exacto del modo para el CSV
+        if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'mode' in layout_fisico[0]:
+            modo_inferido = layout_fisico[0]['mode']
+        else:
+            modo_inferido = "Global_o_Simulado"
 
+        with open(ids_file, 'a') as file:
+            # 🔑 AQUÍ METEMOS EL LAYOUT Y EL MODO EN EL ARCHIVO TEMPORAL
+            file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names, layout_fisico, modo_inferido)}))
+            file.write('\n')
         result = job.result()
         data_bin = result[0].data
         
