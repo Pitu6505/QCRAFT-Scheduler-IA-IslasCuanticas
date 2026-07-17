@@ -48,9 +48,22 @@ def divideResults(id_job:str, counts:dict, shots:list, provider:str, qb:list, us
         qubits_datos = "N/A"
         qubits_centinelas = "N/A"
         
-        if layout_fisico and i < len(layout_fisico) and isinstance(layout_fisico[i], dict):
-            qubits_datos = layout_fisico[i].get('data', "N/A")
-            qubits_centinelas = layout_fisico[i].get('sentinel', "N/A")
+        if layout_fisico:
+            # Si el layout tiene el formato moderno (Diccionarios de Islas + FTQC)
+            if isinstance(layout_fisico[0], dict):
+                if i < len(layout_fisico):
+                    qubits_datos = layout_fisico[i].get('data', "N/A")
+                    qubits_centinelas = layout_fisico[i].get('sentinel', "N/A")
+            
+            # Si el layout tiene el formato clásico (Lista plana de enteros)
+            else:
+                offset_datos = sum(qb[:i])
+                qubits_datos = layout_fisico[offset_datos : offset_datos + qb[i]]
+                
+                # Si el array tiene más qubits físicos que lógicos, los sobrantes son centinelas globales
+                total_datos = sum(qb)
+                if len(layout_fisico) > total_datos:
+                    qubits_centinelas = layout_fisico[total_datos:]
             
         registrar_metrica_csv(
             job_id=id_job,
@@ -61,7 +74,6 @@ def divideResults(id_job:str, counts:dict, shots:list, provider:str, qb:list, us
             shots_totales=shots[i],
             shots_validos=total_shots
         )
-        
         result.append({(users[i],circuit_name[i]):selected_counts})
 
     return result
