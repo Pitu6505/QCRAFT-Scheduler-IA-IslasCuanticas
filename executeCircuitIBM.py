@@ -203,7 +203,7 @@ class executeCircuitIBM:
             error_ruido = depolarizing_error(0.10, 1) # 10% de error para forzar a los centinelas
             noise_model.add_all_qubit_quantum_error(error_ruido, ['x', 'h', 'measure', 'delay'])
             
-            backend = AerSimulator(noise_model=noise_model)
+            backend = AerSimulator(noise_model=noise_model, method='matrix_product_state')  # Quitar la matriz si son pocos circuitos
             
             # Transpilamos sin layout físico para que AerSimulator no se queje
             qc_basis = transpile(circuit, backend=backend, optimization_level=0)
