@@ -9,7 +9,7 @@ pathCircuit = 'circuit'
 
 urls = {
     "Sencillo": "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/Qbits-Centinelas/Test/CircuitosPruebas/sencillo.py",
-    "Complejo": "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/Qbits-Centinelas/Test/CircuitosPruebas/complejo.py"
+    "Complejo": "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/CSV/Test/CircuitosPruebas/circuito_estres_10q.py"
 #   la composicion 4 es desde Reversible-3 hasta vqe-4 sin las dynamic. La composicion 5 es de todos los dynamic
 }
 
@@ -23,7 +23,7 @@ async def main():
         "shots": 10000,
         "provider": ['ibm'],
         "policy": "Islas_Cuanticas_Edges", 
-        "sentinel_mode": "robust" 
+        "sentinel_mode": "dynamic_local_t1" 
     }
     async with aiohttp.ClientSession() as session:
         tasks = []
