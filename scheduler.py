@@ -347,6 +347,11 @@ class Scheduler:
             #return "Policy must be specified", 400
         else:
             policy = request.json['policy']
+
+        requested_provider = request.json.get('provider', None) 
+        if isinstance(requested_provider, list):
+            requested_provider = requested_provider[0] if len(requested_provider) > 0 else None
+            
         url = request.json['url']
         shots = request.json['shots']
         sentinel_mode = request.json.get('sentinel_mode', None)  # Optional parameter, default to None if not provided
@@ -385,8 +390,8 @@ class Scheduler:
             num_qubits = int(match.group(1)) if match else self.max_qubits
             maxDepth = len(circuit.split('\n')) # Estimación rápida
 
-            provider = 'ibm'
-            
+            provider = requested_provider if requested_provider else 'ibm'      
+
             # Lo enviamos directamente a la política saltando todo lo demás
             self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
             return str(user), 200
@@ -440,7 +445,7 @@ class Scheduler:
                 maxDepth = max(qubits) #Get the max number of gates on a qubit
             else:
                 maxDepth = self.executeCircuitIBM.get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
-            provider = 'ibm'
+            provider = requested_provider if requested_provider else 'ibm'
         
         elif importAWS:
             #circ = code_to_circuit_aws(circuit)
@@ -487,7 +492,7 @@ class Scheduler:
                 maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
             # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
             num_qubits = len(qubits.values())
-            provider = 'aws'
+            provider = requested_provider if requested_provider else 'ibm'
 
         self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
 

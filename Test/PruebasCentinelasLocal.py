@@ -6,7 +6,6 @@ pathURL = 'url'
 pathResult = 'result'
 pathCircuit = 'circuit'
 
-# 45 Circuitos
 
 
 urls = {
@@ -39,8 +38,8 @@ async def post_request(session, url, data):
 async def main():
     data_template = {
         "url": "", 
-        "shots": 10000,
-        "provider": ['ibm'],
+        "shots": 1000,
+        "provider": ['aws'],
         "policy": "Islas_Cuanticas_Edges", 
         "sentinel_mode": "dynamic_t1"
     }

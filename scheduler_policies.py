@@ -3,7 +3,8 @@ import queue
 import requests
 from flask import request
 import re
-
+import qiskit.qasm3
+from braket.ir.openqasm import Program
 from executeCircuitIBM import executeCircuitIBM
 from executeCircuitAWS import code_to_circuit_aws, runAWS_save
 from dinamico_copy import optimizar_espacio_dinamico
@@ -19,7 +20,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, circuit, circuit
 import threading
 from typing import Callable, Iterator
 from itertools import combinations
@@ -105,8 +106,8 @@ class SchedulerPolicies:
         self.time_limit_seconds = 10
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
-        self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
+        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
         self.model = SeleccionadorNN(input_dim=2, hidden_dim=16)
@@ -184,309 +185,460 @@ class SchedulerPolicies:
         """
         Executes the circuit in the selected provider
         """
-
+        import qiskit.qasm3
+        from braket.ir.openqasm import Program
+        import re
+        import json
+        
         circuit = ''
         for d in json.loads(data)['code']:
             circuit = circuit + d + '\n'
 
         loc = {}
-        if provider == 'ibm':
-            loc['circuit'] = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
+        
+        # =====================================================================
+        # 1. PARSEO INICIAL Y EXTRACCIÓN DE MEDIDAS (Evita "already measured")
+        # =====================================================================
+        try:
+            qc_original = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
             
-            # --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
-# --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
-# --- INICIO DEL ENSAMBLADOR FTQC DINÁMICO ---
-            if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
-                from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+            # Extraemos las medidas para ponerlas TODAS al final del circuito
+            medidas_originales = []
+            datos_sin_medidas = []
+            for inst in qc_original.data:
+                if inst.operation.name == 'measure':
+                    medidas_originales.append(inst)
+                else:
+                    datos_sin_medidas.append(inst)
+            qc_original.data = datos_sin_medidas
+            
+            if provider == 'aws':
+                from qiskit import transpile
+                # Forzamos a Qiskit a traducir todo a puertas que Rigetti entienda
+                safe_basis = ['cx', 'h', 'x', 'y', 'z', 'rx', 'ry', 'rz', 's', 't', 'sdg', 'tdg', 'barrier', 'delay']
+                qc_original = transpile(qc_original, basis_gates=safe_basis, optimization_level=1)
                 
-                qc_original = loc['circuit']
-                
-                is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
-                is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
-                is_post_selection_local = any(mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
-                
-                if is_dynamic_local:
-                    # ==========================================================
-                    # ARQUITECTURA DE FEED-FORWARD LOCAL (MEDICIÓN A MITAD DE CIRCUITO)
-                    # ==========================================================
-                    c_flags = []
-                    total_centinelas = 0
-                    for i, mapping in enumerate(layout_fisico):
-                        sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
-                        c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
-                        total_centinelas += len(sents)
-                        
-                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
-                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
+            is_qiskit_parsed = True
+        except Exception as e:
+            print(f"Aviso: No se pudo parsear como Qiskit ({e})")
+            qc_original = None
+            is_qiskit_parsed = False
+            medidas_originales = []
+
+        # =====================================================================
+        # 2. ENSAMBLADOR FTQC DINÁMICO (Circuitos con Centinelas)
+        # =====================================================================
+        if is_qiskit_parsed and layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
+            from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+            
+            is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+            is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+            is_post_selection_local = any(mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
+            
+            if is_dynamic_local:
+                c_flags = []
+                total_centinelas = 0
+                for i, mapping in enumerate(layout_fisico):
+                    sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                    c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
+                    total_centinelas += len(sents)
                     
-                    # 1. Preparación conjunta (Armamos los centinelas al inicio)
-                    idx = 0
-                    for mapping in layout_fisico:
-                        modo = mapping.get('mode', 'standard')
-                        for _ in (mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                            if modo == 'dynamic_local_t1':
-                                new_qc.x(q_sentinel[idx])
-                            elif modo == 'dynamic_local_ramsey':
-                                new_qc.h(q_sentinel[idx])
-                            idx += 1
-                            
-                    # 2. SEPARADOR DE INSTRUCCIONES (El Bisturí de Qiskit)
-                    island_instructions = {i: [] for i in range(len(layout_fisico))}
-                    island_ranges = {}
-                    current_offset = 0
-                    
-                    for i, m in enumerate(layout_fisico):
-                        size = len(m['data'])
-                        island_ranges[i] = range(current_offset, current_offset + size)
-                        current_offset += size
+                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
+                
+                idx = 0
+                for mapping in layout_fisico:
+                    modo = mapping.get('mode', 'standard')
+                    for _ in (mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                        if modo == 'dynamic_local_t1':
+                            new_qc.x(q_sentinel[idx])
+                        elif modo == 'dynamic_local_ramsey':
+                            new_qc.h(q_sentinel[idx])
+                        idx += 1
                         
-                    for inst in qc_original.data:
-                        if inst.qubits:
-                            q_idx = qc_original.find_bit(inst.qubits[0]).index
-                            for i, r in island_ranges.items():
-                                if q_idx in r:
-                                    island_instructions[i].append(inst)
-                                    break
-                                    
-                    # 3. EJECUCIÓN DE LA PRIMERA MITAD (Tiempo de exposición real)
-                    for i in range(len(layout_fisico)):
-                        mitad = len(island_instructions[i]) // 2
-                        for inst in island_instructions[i][:mitad]:
+                island_instructions = {i: [] for i in range(len(layout_fisico))}
+                island_ranges = {}
+                current_offset = 0
+                
+                for i, m in enumerate(layout_fisico):
+                    size = len(m['data'])
+                    island_ranges[i] = range(current_offset, current_offset + size)
+                    current_offset += size
+                    
+                for inst in qc_original.data:
+                    if inst.qubits:
+                        q_idx = qc_original.find_bit(inst.qubits[0]).index
+                        for i, r in island_ranges.items():
+                            if q_idx in r:
+                                island_instructions[i].append(inst)
+                                break
+                                
+                for i in range(len(layout_fisico)):
+                    mitad = len(island_instructions[i]) // 2
+                    for inst in island_instructions[i][:mitad]:
+                        new_qc.append(inst)
+                        
+                new_qc.barrier()
+                
+                idx = 0
+                for i, mapping in enumerate(layout_fisico):
+                    modo = mapping.get('mode', 'standard')
+                    for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                        if modo == 'dynamic_local_t1':
+                            new_qc.x(q_sentinel[idx])
+                        elif modo == 'dynamic_local_ramsey':
+                            new_qc.h(q_sentinel[idx])
+                        new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                        idx += 1
+                        
+                for i in range(len(layout_fisico)):
+                    mitad = len(island_instructions[i]) // 2
+                    with new_qc.if_test((c_flags[i], 0)):
+                        for inst in island_instructions[i][mitad:]:
                             new_qc.append(inst)
                             
-                    new_qc.barrier()
-                    
-                    # 4. MEDICIÓN A MITAD DE CIRCUITO (MCM)
-                    idx = 0
-                    for i, mapping in enumerate(layout_fisico):
-                        modo = mapping.get('mode', 'standard')
-                        for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                            if modo == 'dynamic_local_t1':
-                                new_qc.x(q_sentinel[idx])
-                            elif modo == 'dynamic_local_ramsey':
-                                new_qc.h(q_sentinel[idx])
-                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
-                            idx += 1
-                            
-                    # 5. COMPUERTAS CONDICIONALES (La otra mitad protegida)
-                    for i in range(len(layout_fisico)):
-                        mitad = len(island_instructions[i]) // 2
-                        with new_qc.if_test((c_flags[i], 0)):
-                            for inst in island_instructions[i][mitad:]:
-                                new_qc.append(inst)
-                        
-                elif is_dynamic_global:
-                    # ==========================================================
-                    # ARQUITECTURA DE FEED-FORWARD GLOBAL
-                    # ==========================================================
-                    total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
-                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
-                    c_flag = ClassicalRegister(total_centinelas, 'c_flag')
-                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
-                    
-                    idx = 0
-                    for m in layout_fisico:
-                        modo = m.get('mode', 'standard')
-                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
-                            if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
-                            elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
-                            idx += 1
-                    
-                    new_qc.delay(1000, q_sentinel, unit='ns') 
-                    new_qc.barrier()
-                    
-                    idx = 0
-                    for m in layout_fisico:
-                        modo = m.get('mode', 'standard')
-                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
-                            if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
-                            elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
-                            new_qc.measure(q_sentinel[idx], c_flag[idx])
-                            idx += 1
-                            
-                    with new_qc.if_test((c_flag, 0)):
-                        new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
-                elif is_post_selection_local:
-                    # ==========================================================
-                    # ARQUITECTURA DE POST-SELECCIÓN LOCAL (Descarte por Isla)
-                    # ==========================================================
-                    c_flags = []
-                    total_centinelas = 0
-                    for i, mapping in enumerate(layout_fisico):
-                        sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
-                        # Creamos un registro clásico independiente para cada isla
-                        c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
-                        total_centinelas += len(sents)
-                        
-                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
-                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
-                    
-                    # 1. Inicialización de los centinelas
-                    idx = 0
-                    for m in layout_fisico:
-                        modo = m.get('mode', 'standard')
-                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
-                            if 't1_decay' in modo: 
-                                new_qc.x(q_sentinel[idx])
-                            else: 
-                                # Aplica a completo_local, robust_local, dd_local, standard_local
-                                new_qc.h(q_sentinel[idx]) 
-                            idx += 1
-                    
-                    new_qc.barrier()
-                    
-                    # 2. Ejecución de los circuitos maestros
-                    new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
-                    new_qc.barrier()
-                    
-                    # 3. Cierre y medición (Física individualizada por modo)
-                    idx = 0
-                    for i, m in enumerate(layout_fisico):
-                        modo = m.get('mode', 'standard')
-                        for j, _ in enumerate(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
-                            if 'dd' in modo:
-                                # Secuencia de Desacoplamiento Dinámico
-                                new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
-                                new_qc.y(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
-                                new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
-                                new_qc.y(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
-                            elif 'robust' in modo or 'completo' in modo:
-                                # Secuencia de Eco de Hahn
-                                new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
-                            elif 't1_decay' in modo:
-                                # Secuencia de Recuperación de Inversión
-                                new_qc.x(q_sentinel[idx])
-                            else: 
-                                # Secuencia de Interferometría de Ramsey (standard_local)
-                                new_qc.h(q_sentinel[idx])
-                                
-                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
-                            idx += 1
-                else:
-                    # ==========================================================
-                    # ARQUITECTURA CLÁSICA DE POST-SELECCIÓN GLOBAL
-                    # ==========================================================
-                    total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
-                    q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
-                    c_flag = ClassicalRegister(total_centinelas, 'c_flag')
-                    new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
-                    
-                    idx = 0
-                    for m in layout_fisico:
-                        modo = m.get('mode', 'standard')
-                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
-                            if modo in ['standard', 'robust', 'completo', 'dd']: new_qc.h(q_sentinel[idx])
-                            elif modo == 't1_decay': new_qc.x(q_sentinel[idx])
-                            idx += 1
-                    
-                    new_qc.barrier()
-                    new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
-                    new_qc.barrier()
-                    
-                    idx = 0
-                    for m in layout_fisico:
-                        modo = m.get('mode', 'standard')
-                        for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
-                            if modo == 'dd':
-                                new_qc.x(q_sentinel[idx])
-                                new_qc.barrier(q_sentinel[idx])
-                                new_qc.y(q_sentinel[idx])
-                                new_qc.barrier(q_sentinel[idx])
-                                new_qc.x(q_sentinel[idx])
-                                new_qc.barrier(q_sentinel[idx])
-                                new_qc.y(q_sentinel[idx])
-                                new_qc.h(q_sentinel[idx])
-                            elif modo in ['robust', 'completo']:
-                                new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
-                            elif modo == 't1_decay': new_qc.x(q_sentinel[idx]) 
-                            else: new_qc.h(q_sentinel[idx])
-                            new_qc.measure(q_sentinel[idx], c_flag[idx])
-                            idx += 1
-                    
-                loc['circuit'] = new_qc
-
-# === NUEVO: DIBUJAR EL CIRCUITO EN CONSOLA ===
-                print("\n" + "="*60)
-                print(f" ESTRUCTURA DEL CIRCUITO DINÁMICO ({total_centinelas} Sensores)")
-                print("="*60)
-                # fold=-1 evita que el dibujo se corte y salte de línea, mostrándolo entero
-                print(new_qc.draw(output='text', fold=-1)) 
-                print("="*60 + "\n")
+            elif is_dynamic_global:
+                total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
+                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                c_flag = ClassicalRegister(total_centinelas, 'c_flag')
+                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
                 
-                # 🔑 GUARDAMOS EL LAYOUT ORIGINAL ESTRUCTURADO ANTES DE APLANARLO
-                layout_fisico_estructurado = layout_fisico.copy()
+                idx = 0
+                for m in layout_fisico:
+                    modo = m.get('mode', 'standard')
+                    for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                        if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
+                        elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
+                        idx += 1
                 
-                # 4. Aplanar el layout físico para poder mandárselo a IBM/Aer
-                datos_planos = []
-                centinelas_planos = []
-                for mapping in layout_fisico:
-                    datos_planos.extend(mapping['data'])
+                new_qc.delay(1000, q_sentinel, unit='ns') 
+                new_qc.barrier()
+                
+                idx = 0
+                for m in layout_fisico:
+                    modo = m.get('mode', 'standard')
+                    for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                        if modo == 'dynamic_t1': new_qc.x(q_sentinel[idx])
+                        elif modo == 'dynamic_ramsey': new_qc.h(q_sentinel[idx])
+                        new_qc.measure(q_sentinel[idx], c_flag[idx])
+                        idx += 1
+                        
+                with new_qc.if_test((c_flag, 0)):
+                    new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                    
+            elif is_post_selection_local:
+                c_flags = []
+                total_centinelas = 0
+                for i, mapping in enumerate(layout_fisico):
                     sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
-                    centinelas_planos.extend(sents)
+                    c_flags.append(ClassicalRegister(len(sents), f'c_flag_{i}'))
+                    total_centinelas += len(sents)
+                    
+                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
                 
-                layout_fisico_plano = datos_planos + centinelas_planos
-                print(f"🛡️ Circuito FTQC generado ({total_centinelas} sensores | Modo Dinámico: {'Local' if is_dynamic_local else 'Global' if is_dynamic_global else 'Post-selección Local' if is_post_selection_local else 'Post-selección Global'}). Layout final: {layout_fisico_plano}")
+                idx = 0
+                for m in layout_fisico:
+                    modo = m.get('mode', 'standard')
+                    for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
+                        if 't1_decay' in modo: 
+                            new_qc.x(q_sentinel[idx])
+                        else: 
+                            new_qc.h(q_sentinel[idx]) 
+                        idx += 1
+                
+                new_qc.barrier()
+                new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                new_qc.barrier()
+                
+                idx = 0
+                for i, m in enumerate(layout_fisico):
+                    modo = m.get('mode', 'standard')
+                    for j, _ in enumerate(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                        if 'dd' in modo:
+                            new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.y(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.y(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                        elif 'robust' in modo or 'completo' in modo:
+                            new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                        elif 't1_decay' in modo:
+                            new_qc.x(q_sentinel[idx])
+                        else: 
+                            new_qc.h(q_sentinel[idx])
+                            
+                        new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                        idx += 1
+            else:
+                total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
+                q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
+                c_flag = ClassicalRegister(total_centinelas, 'c_flag')
+                new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, c_flag)
+                
+                idx = 0
+                for m in layout_fisico:
+                    modo = m.get('mode', 'standard')
+                    for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
+                        if modo in ['standard', 'robust', 'completo', 'dd']: new_qc.h(q_sentinel[idx])
+                        elif modo == 't1_decay': new_qc.x(q_sentinel[idx])
+                        idx += 1
+                
+                new_qc.barrier()
+                new_qc.compose(qc_original, qubits=range(qc_original.num_qubits), clbits=range(qc_original.num_clbits), inplace=True)
+                new_qc.barrier()
+                
+                idx = 0
+                for m in layout_fisico:
+                    modo = m.get('mode', 'standard')
+                    for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]):
+                        if modo == 'dd':
+                            new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.y(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.x(q_sentinel[idx]); new_qc.barrier(q_sentinel[idx])
+                            new_qc.y(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                        elif modo in ['robust', 'completo']:
+                            new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
+                        elif modo == 't1_decay': new_qc.x(q_sentinel[idx]) 
+                        else: new_qc.h(q_sentinel[idx])
+                        new_qc.measure(q_sentinel[idx], c_flag[idx])
+                        idx += 1
             
-            if layout_fisico is not None:
-                print(f"🟦 Usando layout físico plano: {layout_fisico_plano}")
-        else:
-            loc['circuit'] = code_to_circuit_aws(circuit)
+            # === Reincorporamos las mediciones de los datos al final protegidas por una barrera ===
+            new_qc.barrier()
+            for m_inst in medidas_originales:
+                new_qc.append(m_inst)
+                
+            loc['circuit'] = new_qc
 
-        # Inicializar counts
+            print("\n" + "="*60)
+            print(f" ESTRUCTURA DEL CIRCUITO DINÁMICO ({total_centinelas} Sensores)")
+            print("="*60)
+            print(new_qc.draw(output='text', fold=-1)) 
+            print("="*60 + "\n")
+            
+            layout_fisico_estructurado = layout_fisico.copy()
+            
+            datos_planos = []
+            centinelas_planos = []
+            for mapping in layout_fisico:
+                datos_planos.extend(mapping['data'])
+                sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                centinelas_planos.extend(sents)
+            
+            layout_fisico_plano = datos_planos + centinelas_planos
+            print(f"🛡️ Circuito FTQC generado. Layout final: {layout_fisico_plano}")
+
+            if provider == 'aws':
+                print(f"🔄 Traducción Automática: Convirtiendo circuito Qiskit FTQC a OpenQASM 3.0 para Rigetti...")
+                
+                # ENRUTAMIENTO FÍSICO CON SWAPs BLOQUEANDO PUERTAS U2
+                if layout_fisico_plano:
+                    try:
+                        if not hasattr(self, 'aws_cmap'):
+                            from aws_api import get_backend_graph_aws
+                            print("🗺️ Descargando mapa de hardware Rigetti para cálculo de rutas...")
+                            cmap_edges, _, _ = get_backend_graph_aws("arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q")
+                            if cmap_edges:
+                                from qiskit.transpiler import CouplingMap
+                                self.aws_cmap = CouplingMap(cmap_edges)
+                            else:
+                                self.aws_cmap = None
+                                
+                        if self.aws_cmap:
+                            from qiskit import transpile
+                            # Aquí está la clave: Obligamos a Qiskit a enrutar usando SOLO primitivas nativas, prohibido usar u2 o u3
+                            safe_basis_routing = ['cx', 'h', 'x', 'y', 'z', 'rx', 'ry', 'rz', 's', 't', 'sdg', 'tdg', 'measure', 'barrier', 'delay', 'swap']
+                            loc['circuit'] = transpile(loc['circuit'], coupling_map=self.aws_cmap, initial_layout=layout_fisico_plano, basis_gates=safe_basis_routing, optimization_level=1)
+                            layout_ya_enrutado = True
+                        else:
+                            layout_ya_enrutado = False
+                    except Exception as e:
+                        print(f"⚠️ Error al enrutar con AWS API: {e}")
+                        layout_ya_enrutado = False
+                else:
+                    layout_ya_enrutado = False
+                
+                qasm_string = qiskit.qasm3.dumps(loc['circuit'])
+                qasm_string = qasm_string.replace('include "stdgates.inc";', '')
+                
+                replacements = {
+                    r'\bcx\b': 'cnot', r'\bsdg\b': 'si', r'\btdg\b': 'ti',
+                    r'\bid\b': 'i', r'\bcp\b': 'cphaseshift', r'\bp\b': 'phaseshift', r'\bswap\b': 'swap'
+                }
+                for qiskit_gate, braket_gate in replacements.items():
+                    qasm_string = re.sub(qiskit_gate, braket_gate, qasm_string)
+                
+                bit_decls = re.findall(r'\bbit\[(\d+)\]\s+([a-zA-Z_]\w*);', qasm_string)
+                if bit_decls:
+                    total_bits = 0
+                    reg_map = {}
+                    for size_str, name in bit_decls:
+                        size = int(size_str)
+                        reg_map[name] = (total_bits, size)
+                        total_bits += size
+                        
+                    qasm_string = re.sub(r'\bbit\[\d+\]\s+[a-zA-Z_]\w*;\n?', '', qasm_string)
+                    qasm_string = qasm_string.replace("OPENQASM 3.0;", f"OPENQASM 3.0;\nbit[{total_bits}] ro;")
+                    
+                    sorted_names = sorted(reg_map.keys(), key=len, reverse=True)
+                    for name in sorted_names:
+                        offset, size = reg_map[name]
+                        def repl_idx(match):
+                            idx = int(match.group(1))
+                            return f"ro[{offset + idx}]"
+                        qasm_string = re.sub(rf'\b{name}\s*\[\s*(\d+)\s*\]', repl_idx, qasm_string)
+                        
+                        if size == 1:
+                            qasm_string = re.sub(rf'\b{name}\b', f"ro[{offset}]", qasm_string)
+                        else:
+                            qasm_string = re.sub(rf'\b{name}\b', f"ro[{offset}:{offset+size-1}]", qasm_string)
+                
+                if layout_fisico_plano:
+                    if layout_ya_enrutado:
+                        qubit_decls = re.findall(r'\bqubit\[(\d+)\]\s+([a-zA-Z_]\w*);', qasm_string)
+                        for _, q_name in qubit_decls:
+                            qasm_string = re.sub(rf'\b{q_name}\[(\d+)\]', r'$\1', qasm_string)
+                        qasm_string = re.sub(r'\bqubit\[\d+\]\s+[a-zA-Z_]\w*;\n?', '', qasm_string)
+                    else:
+                        qubit_decls = re.findall(r'\bqubit\[(\d+)\]\s+([a-zA-Z_]\w*);', qasm_string)
+                        q_map = {}
+                        current_idx = 0
+                        for size_str, name in qubit_decls:
+                            size = int(size_str)
+                            for i in range(size):
+                                if current_idx < len(layout_fisico_plano):
+                                    phys_idx = layout_fisico_plano[current_idx]
+                                    q_map[f"{name}[{i}]"] = f"${phys_idx}"
+                                current_idx += 1
+                                
+                        qasm_string = re.sub(r'\bqubit\[\d+\]\s+[a-zA-Z_]\w*;\n?', '', qasm_string)
+                        
+                        for logical, physical in q_map.items():
+                            logical_escaped = logical.replace('[', r'\[').replace(']', r'\]')
+                            qasm_string = re.sub(rf'\b{logical_escaped}', physical, qasm_string)
+                
+                print("\n=== OPENQASM 3.0 FINAL ENVIADO A AWS ===")
+                print(qasm_string)
+                print("========================================\n")
+                
+                loc['circuit'] = Program(source=qasm_string)
+
+        # =====================================================================
+        # 3. MODO SIN CENTINELAS (Circuitos originales o Políticas Básicas)
+        # =====================================================================
+        else:
+            layout_fisico_plano = None
+            
+            # Devolvemos las medidas si no estábamos usando FTQC
+            if is_qiskit_parsed and qc_original:
+                qc_original.barrier()
+                for m_inst in medidas_originales:
+                    qc_original.append(m_inst)
+                    
+            if provider == 'ibm':
+                loc['circuit'] = qc_original if qc_original else self.executeCircuitIBM.code_to_circuit_ibm(circuit)
+            else:
+                if "OPENQASM 3.0" in circuit:
+                    loc['circuit'] = Program(source=circuit)
+                elif is_qiskit_parsed:
+                    print(f"🔄 Traducción Automática (Sin Centinelas): Convirtiendo Qiskit a OpenQASM 3.0 para Rigetti...")
+                    qasm_string = qiskit.qasm3.dumps(qc_original)
+                    qasm_string = qasm_string.replace('include "stdgates.inc";', '')
+                    
+                    replacements = {
+                        r'\bcx\b': 'cnot', r'\bsdg\b': 'si', r'\btdg\b': 'ti',
+                        r'\bid\b': 'i', r'\bcp\b': 'cphaseshift', r'\bp\b': 'phaseshift'
+                    }
+                    for qiskit_gate, braket_gate in replacements.items():
+                        qasm_string = re.sub(qiskit_gate, braket_gate, qasm_string)
+                        
+                    bit_decls = re.findall(r'\bbit\[(\d+)\]\s+([a-zA-Z_]\w*);', qasm_string)
+                    if bit_decls:
+                        total_bits = 0
+                        reg_map = {}
+                        for size_str, name in bit_decls:
+                            size = int(size_str)
+                            reg_map[name] = (total_bits, size)
+                            total_bits += size
+                            
+                        qasm_string = re.sub(r'\bbit\[\d+\]\s+[a-zA-Z_]\w*;\n?', '', qasm_string)
+                        qasm_string = qasm_string.replace("OPENQASM 3.0;", f"OPENQASM 3.0;\nbit[{total_bits}] ro;")
+                        
+                        sorted_names = sorted(reg_map.keys(), key=len, reverse=True)
+                        for name in sorted_names:
+                            offset, size = reg_map[name]
+                            def repl_idx(match):
+                                idx = int(match.group(1))
+                                return f"ro[{offset + idx}]"
+                            qasm_string = re.sub(rf'\b{name}\s*\[\s*(\d+)\s*\]', repl_idx, qasm_string)
+                            
+                            if size == 1:
+                                qasm_string = re.sub(rf'\b{name}\b', f"ro[{offset}]", qasm_string)
+                            else:
+                                qasm_string = re.sub(rf'\b{name}\b', f"ro[{offset}:{offset+size-1}]", qasm_string)
+                                
+                    print("\n=== OPENQASM 3.0 (SIN CENTINELAS) FINAL ENVIADO A AWS ===")
+                    print(qasm_string)
+                    print("==========================================================\n")
+                    loc['circuit'] = Program(source=qasm_string)
+                else:
+                    loc['circuit'] = code_to_circuit_aws(circuit)
+
+# =====================================================================
+        # 4. EJECUCIÓN (Envío final al proveedor)
+        # =====================================================================
         counts = None
 
         try:
             if provider == 'ibm':
-                # Validar tamaño del layout
-                if layout_fisico is not None:
-                    if len(layout_fisico_plano) != loc['circuit'].num_qubits:
-                        print(f"⚠️ Layout inválido: {len(layout_fisico_plano)} qubits en layout, pero el circuito tiene {loc['circuit'].num_qubits}")
-                        layout_fisico_plano = None 
-
-                if layout_fisico is not None:
+                if layout_fisico_plano is not None:
                     counts = self.executeCircuitIBM.runIBM_save(
-                        machine,
-                        loc['circuit'],
-                        max(shots),
-                        [url[3] for url in urls],
-                        qb,
-                        [url[4] for url in urls],
-                        # Le mandamos a IBM el plano para que ejecute
-                        layout_fisico_plano 
+                        machine, loc['circuit'], max(shots), [url[3] for url in urls],
+                        qb, [url[4] for url in urls], layout_fisico_plano 
                     )
                 else:
                     counts = self.executeCircuitIBM.runIBM_save(
-                        machine,
-                        loc['circuit'],
-                        max(shots),
-                        [url[3] for url in urls],
-                        qb,
-                        [url[4] for url in urls]
+                        machine, loc['circuit'], max(shots), [url[3] for url in urls],
+                        qb, [url[4] for url in urls]
                     )
             else:
+                s3_bucket = ('amazon-braket-jorgecs', 'test/')
                 counts = runAWS_save(
-                    machine,
-                    loc['circuit'],
-                    max(shots),
-                    [url[3] for url in urls],
-                    qb,
-                    [url[4] for url in urls],
-                    layout_fisico_plano 
+                    machine, loc['circuit'], max(shots), [url[3] for url in urls],
+                    qb, [url[4] for url in urls],
+                    layout_fisico_plano if 'layout_fisico_plano' in locals() else None,
+                    s3_folder=s3_bucket
                 )
+
+                # === NUEVO: FILTRO DE POST-SELECCIÓN EXCLUSIVO PARA AWS ===
+                if counts is not None and layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
+                    total_logicos = sum(qb)
+                    total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
+                    
+                    counts_filtrados = {}
+                    for bitstring, freq in counts.items():
+                        # Braket agrupa todo de izquierda a derecha. Lógicos primero, centinelas al final.
+                        datos = bitstring[:total_logicos]
+                        centinelas = bitstring[total_logicos:total_logicos+total_centinelas]
+                        
+                        # Si NO hay ningún '1' en los centinelas (circuito limpio de ruido)
+                        if '1' not in centinelas:
+                            if datos in counts_filtrados:
+                                counts_filtrados[datos] += freq
+                            else:
+                                counts_filtrados[datos] = freq
+                                
+                    counts = counts_filtrados
+                    print(f"🧹 AWS Post-selección: Se descartaron {max(shots) - sum(counts.values())} shots corruptos.")
 
         except Exception as e:
             print(f"❌ Error executing circuit: {e}")
 
-        # Evitar fallo si counts es None
-# Evitar fallo si counts es None
         if counts is not None:
-            
-            # 🔑 RECUPERAMOS EL MODO DIRECTAMENTE DEL LAYOUT ANTES DEL JSON
             modo_inferido = "Sin_Centinela"
             if layout_fisico is not None and len(layout_fisico) > 0 and isinstance(layout_fisico[0], dict):
                 modo_inferido = layout_fisico[0].get('mode', 'Sin_Centinela')
                 
-            # 🔑 ASEGURAMOS QUE SE ENVÍA LA VERSIÓN ESTRUCTURADA SI EXISTE
             layout_final = layout_fisico_estructurado if 'layout_fisico_estructurado' in locals() and layout_fisico_estructurado is not None else layout_fisico
 
             data = {
@@ -503,8 +655,6 @@ class SchedulerPolicies:
             requests.post(self.unscheduler, json=data)
         else:
             print("⚠️ No se obtuvieron resultados de ejecución (counts = None)")
-
-
 
     def most_repetitive(self, array:list) -> int: #Check the most repetitive element in an array and if there are more than one, return the smallest
         """
@@ -552,9 +702,9 @@ class SchedulerPolicies:
 
     def create_circuit(self, urls: list, code: list, qb: list, provider: str) -> None:
         composition_qubits = 0
-        es_qasm3 = False # NUEVA BANDERA
+        es_qasm3 = False 
+        
         for entry in urls:
-            # 📝 CAMBIO: Aceptar tuplas de 6, 7 u 8 elementos
             if len(entry) == 8:
                 url, num_qubits, shots, user, circuit_name, depth, iterator, sentinel_mode = entry
             elif len(entry) == 7:
@@ -567,17 +717,13 @@ class SchedulerPolicies:
             else:
                 raise ValueError(f"Cada elemento de 'urls' debe tener 6, 7 o 8 campos; recibido {len(entry)}: {entry}")
             
-            # Nuevo 
             if "OPENQASM 3.0" in url:
                 es_qasm3 = True
-                code.append(url)  # Agregar el código QASM3 directamente
+                code.append(url) 
                 composition_qubits += int(num_qubits)
                 qb.append(int(num_qubits))
                 continue
-            # ---------------------------------------
 
-
-            # (el resto de tu código permanece igual, usando 'url', 'num_qubits', etc.)
             if 'algassert' in url:
                 try:
                     x = requests.post(self.translator + provider + '/individual', json={'url': url, 'd': composition_qubits})
@@ -590,42 +736,24 @@ class SchedulerPolicies:
             else:
                 lines = url.split('\n')
                 for i, line in enumerate(lines):
-                    if provider == 'ibm':
-                        line = line.replace('qreg_q[', f'qreg_q[{composition_qubits}+')
-                        line = line.replace('creg_c[', f'creg_c[{composition_qubits}+')
-                    elif provider == 'aws':
-                        gate_name = re.search(r'circuit\.(.*?)\(', line).group(1)
-                        if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
-                            line = re.sub(rf'{gate_name}\(\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits}", line, count=1)
-                        elif gate_name in ['xx', 'yy', 'zz','ms'] or 'cphase' in gate_name:
-                            line = re.sub(rf'{gate_name}\((\d+),\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits},{int(m.group(2)) + composition_qubits}", line, count=1)
-                        else:
-                            line = re.sub(r'(\d+)', lambda m: str(int(m.group(1)) + composition_qubits), line)
+                    # === SOLUCIÓN: Aplicamos el desplazamiento de qubits de Qiskit para TODOS los proveedores ===
+                    line = line.replace('qreg_q[', f'qreg_q[{composition_qubits}+')
+                    line = line.replace('creg_c[', f'creg_c[{composition_qubits}+')
                     code.append(line)
 
             composition_qubits += int(num_qubits)
             qb.append(int(num_qubits))
 
-        if provider == 'ibm' and not es_qasm3:  # Solo insertar si no es QASM3
-            # Add at the first position of the code[]
+        # === SOLUCIÓN: Insertamos la cabecera del motor universal (Qiskit) SIEMPRE ===
+        if not es_qasm3:  
             code.insert(0,"circuit = QuantumCircuit(qreg_q, creg_c)")
-            code.insert(0, f"creg_c = ClassicalRegister({composition_qubits}, 'c')")  # Set composition_qubits as the number of classical bits
-            code.insert(0, f"qreg_q = QuantumRegister({composition_qubits}, 'q')")  # Set composition_qubits as the number of classical bits
+            code.insert(0, f"creg_c = ClassicalRegister({composition_qubits}, 'c')")  
+            code.insert(0, f"qreg_q = QuantumRegister({composition_qubits}, 'q')")  
             code.insert(0,"from numpy import pi")
             code.insert(0,"import numpy as np")
             code.insert(0,"from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit")
             code.insert(0,"from qiskit.circuit.library import MCXGate, MCMT, XGate, YGate, ZGate")
             code.append("return circuit")
-        # Para hacer urls y circuitos quizas sea posible hacer que las urls tengan en mismo formato de salida del traductor y se pueda hacer un solo metodo para ambos. Que no se sepa cuando salgan del traductor si es un circuito o una url, que se pueda hacer el mismo tratamiento a ambos
-        elif provider == 'aws':
-            code.insert(0,"circuit = Circuit()")
-            code.insert(0,"from numpy import pi")
-            code.insert(0,"import numpy as np")
-            code.insert(0,"from collections import Counter")
-            code.insert(0,"from braket.circuits import Circuit")
-            code.append("return circuit")
-
-
 
 
 
