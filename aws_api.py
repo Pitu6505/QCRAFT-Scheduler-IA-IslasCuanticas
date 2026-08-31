@@ -9,27 +9,43 @@ class SimulatedGate:
              {'name': 'gate_error', 'value': error_value}
         ]
 
+def buscar_clave_recursiva(diccionario, clave_objetivo):
+    """Busca una clave en cualquier nivel de profundidad del diccionario de AWS."""
+    if isinstance(diccionario, dict):
+        if clave_objetivo in diccionario:
+            return diccionario[clave_objetivo]
+        for valor in diccionario.values():
+            resultado = buscar_clave_recursiva(valor, clave_objetivo)
+            if resultado is not None:
+                return resultado
+    elif isinstance(diccionario, list):
+        for elemento in diccionario:
+            resultado = buscar_clave_recursiva(elemento, clave_objetivo)
+            if resultado is not None:
+                return resultado
+    return None
+
 def get_backend_graph_aws(device_arn: str = "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q"):
     """
-    Obtiene los datos de calibración de AWS Braket (ej. Rigetti Cepheus)
-    y los formatea para que sean compatibles con el grafo del middleware.
+    Obtiene los datos de calibración de AWS Braket y los formatea
+    de forma segura para que sean compatibles con el grafo del middleware.
     """
     print(f"🛰️ Conectando a AWS Braket para obtener datos de {device_arn}...")
     
     try:
         device = AwsDevice(device_arn)
         properties_aws = device.properties
+        props_dict = properties_aws.dict()
     except Exception as e:
         print(f"Error al conectar con AWS Braket: {e}")
         return None, None, None
 
-    calibration_data = properties_aws.standardized.dict()
-    aws_qubit_props = calibration_data.get('oneQubitProperties', {})
-    aws_gate_props = calibration_data.get('twoQubitProperties', {})
+    # Búsqueda dinámica para evitar fallos si AWS cambia el esquema
+    aws_qubit_props = buscar_clave_recursiva(props_dict, 'oneQubitProperties') or {}
+    aws_gate_props = buscar_clave_recursiva(props_dict, 'twoQubitProperties') or {}
     
     g_temp = nx.Graph(properties_aws.paradigm.connectivity.connectivityGraph)
     
-    # Se elimina el límite estático de 81 qubits para soportar los 108 de Cepheus
     coupling_map = [[int(q1), int(q2)] for q1, q2 in g_temp.edges()]
     
     qubit_ids_from_graph = set(q for edge in coupling_map for q in edge) if coupling_map else set()
@@ -42,12 +58,10 @@ def get_backend_graph_aws(device_arn: str = "arn:aws:braket:us-west-1::device/qp
     print(f" Qubits detectados: {len(all_qubit_ids)} (IDs del 0 al {max_qubit_id})")
     
     dummy_q_props = [
-        {'value': 0.0},  # T1 = 0
-        {'value': 0.0},  # T2 = 0
-        None,
-        None,
-        None,
-        {'value': 1.0}   # Readout Error = 1.0
+        {'value': 0.0},
+        {'value': 0.0},
+        None, None, None,
+        {'value': 1.0}
     ]
     
     formatted_qubit_list = [dummy_q_props.copy() for _ in range(list_size)]
@@ -82,17 +96,20 @@ def get_backend_graph_aws(device_arn: str = "arn:aws:braket:us-west-1::device/qp
     
     for pair_str, props in aws_gate_props.items():
         try:
-            q_pair = tuple(map(int, pair_str.strip("()").split(",")))
+            q_pair = tuple(map(int, pair_str.strip("()").split("-")))
         except ValueError:
-            continue
+            try:
+                # Soporte por si AWS Braket devuelve el formato antiguo (q1, q2)
+                q_pair = tuple(map(int, pair_str.strip("()").split(",")))
+            except ValueError:
+                continue
 
         cx_fidelity = None
         gate_name_from_aws = None
-        for item in props.get('twoQubitFidelity', []):
-            # Priorizamos la detección nativa de la puerta CZ de Rigetti
-            if item.get('fidelityType', {}).get('name') in ['CZ', 'CX']:
+        for item in props.get('twoQubitGateFidelity', []) or props.get('twoQubitFidelity', []):
+            if item.get('fidelityType', {}).get('name') in ['INTERLEAVED_RANDOMIZED_BENCHMARKING', 'CZ', 'CX']:
                 cx_fidelity = item.get('fidelity', 1.0)
-                gate_name_from_aws = 'cx' # Mapeo estándar para el planificador
+                gate_name_from_aws = 'cx'
                 break
         
         if gate_name_from_aws:

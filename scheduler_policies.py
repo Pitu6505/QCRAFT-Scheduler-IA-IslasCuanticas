@@ -431,24 +431,24 @@ class SchedulerPolicies:
             if provider == 'aws':
                 print(f"🔄 Traducción Automática: Convirtiendo circuito Qiskit FTQC a OpenQASM 3.0 para Rigetti...")
                 
-                # ENRUTAMIENTO FÍSICO CON SWAPs BLOQUEANDO PUERTAS U2
+# ENRUTAMIENTO FÍSICO CON SWAPs BLOQUEANDO PUERTAS U2
                 if layout_fisico_plano:
                     try:
-                        if not hasattr(self, 'aws_cmap'):
-                            from aws_api import get_backend_graph_aws
-                            print("🗺️ Descargando mapa de hardware Rigetti para cálculo de rutas...")
-                            cmap_edges, _, _ = get_backend_graph_aws("arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q")
-                            if cmap_edges:
-                                from qiskit.transpiler import CouplingMap
-                                self.aws_cmap = CouplingMap(cmap_edges)
-                            else:
-                                self.aws_cmap = None
-                                
-                        if self.aws_cmap:
+                        from aws_api import get_backend_graph_aws
+                        print("🗺️ Descargando mapa de hardware Rigetti EN VIVO para evitar enlaces caídos...")
+                        
+                        # ELIMINAMOS LA CACHÉ: Descargamos la topología real del segundo exacto
+                        cmap_edges, _, _ = get_backend_graph_aws("arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q")
+                        
+                        if cmap_edges:
+                            from qiskit.transpiler import CouplingMap
+                            live_cmap = CouplingMap(cmap_edges)
                             from qiskit import transpile
-                            # Aquí está la clave: Obligamos a Qiskit a enrutar usando SOLO primitivas nativas, prohibido usar u2 o u3
+                            
                             safe_basis_routing = ['cx', 'h', 'x', 'y', 'z', 'rx', 'ry', 'rz', 's', 't', 'sdg', 'tdg', 'measure', 'barrier', 'delay', 'swap']
-                            loc['circuit'] = transpile(loc['circuit'], coupling_map=self.aws_cmap, initial_layout=layout_fisico_plano, basis_gates=safe_basis_routing, optimization_level=1)
+                            
+                            # NIVEL 3 DE OPTIMIZACIÓN: Comprime los SWAPs y cancela puertas redundantes
+                            loc['circuit'] = transpile(loc['circuit'], coupling_map=live_cmap, initial_layout=layout_fisico_plano, basis_gates=safe_basis_routing, optimization_level=3)
                             layout_ya_enrutado = True
                         else:
                             layout_ya_enrutado = False
