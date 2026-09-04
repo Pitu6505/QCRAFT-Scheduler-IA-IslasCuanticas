@@ -111,6 +111,28 @@ class executeCircuitIBM:
 
         return qc_basis.depth()
 
+    def _flatten_layout(self, layout_fisico):
+        """Convierte un layout de islas a una lista plana de qubits físicos."""
+        if layout_fisico is None:
+            return None
+
+        flat_layout = []
+        for item in layout_fisico:
+            if isinstance(item, dict):
+                if 'data' in item:
+                    flat_layout.extend(item['data'])
+                if 'sentinel' in item:
+                    sentinels = item['sentinel']
+                    if isinstance(sentinels, list):
+                        flat_layout.extend(sentinels)
+                    else:
+                        flat_layout.append(sentinels)
+            elif isinstance(item, (list, tuple)):
+                flat_layout.extend(item)
+            else:
+                flat_layout.append(item)
+
+        return flat_layout
 
     # Ejecutar el circuito
     def runIBM(self, machine:str, circuit:QuantumCircuit, shots:int) -> dict:
@@ -195,19 +217,44 @@ class executeCircuitIBM:
 
         if machine == "local":
             from qiskit_aer import AerSimulator
-            from qiskit_aer.noise import NoiseModel, depolarizing_error
+            from qiskit_aer.noise import NoiseModel
             from qiskit.primitives import BackendSamplerV2
-            
-            # 1. CREAR MODELO DE RUIDO (Simulando hardware NISQ)
-            noise_model = NoiseModel()
-            error_ruido = depolarizing_error(0.10, 1) # 10% de error para forzar a los centinelas
-            noise_model.add_all_qubit_quantum_error(error_ruido, ['x', 'h', 'measure', 'delay'])
-            
-            backend = AerSimulator(noise_model=noise_model, method='matrix_product_state')  # Quitar la matriz si son pocos circuitos
-            
-            # Transpilamos sin layout físico para que AerSimulator no se queje
-            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
-                
+
+            # 1. Cargar el ruido real del backend IBM Fez
+            backend_real = self.service.backend("ibm_fez")
+            noise_model = NoiseModel.from_backend(backend_real)
+
+            # 2. Si existe un layout físico calculado por la política, lo aplicamos
+            #    y reducimos el coupling_map al subconjunto de qubits usados.
+            flat_layout = self._flatten_layout(layout_fisico) if layout_fisico is not None else None
+            if flat_layout is not None:
+                used_qubits = sorted(set(flat_layout))
+                remap = {old: new for new, old in enumerate(used_qubits)}
+                reduced_coupling = [
+                    (remap[u], remap[v])
+                    for u, v in backend_real.coupling_map
+                    if u in remap and v in remap
+                ]
+
+                backend = AerSimulator(
+                    noise_model=noise_model,
+                    coupling_map=reduced_coupling,
+                    method='matrix_product_state'
+                )
+                qc_basis = transpile(
+                    circuit,
+                    backend=backend,
+                    optimization_level=0,
+                    initial_layout=flat_layout
+                )
+            else:
+                backend = AerSimulator(
+                    noise_model=noise_model,
+                    coupling_map=backend_real.coupling_map,
+                    method='matrix_product_state'
+                )
+                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+
             sampler = BackendSamplerV2(backend=backend)
             job = sampler.run([qc_basis], shots=x)
             

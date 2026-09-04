@@ -103,7 +103,7 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 10
+        self.time_limit_seconds = 20
         self.max_qubits = 156
         self.forced_threshold = 12
         self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
