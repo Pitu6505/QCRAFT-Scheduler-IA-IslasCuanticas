@@ -232,6 +232,7 @@ class SchedulerPolicies:
             from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
             
             is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+            is_dynamic_local_initial = any(mapping.get('mode', 'standard').startswith('dynamic_local_initial') for mapping in layout_fisico)
             is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
             is_post_selection_local = any(mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
             
@@ -250,9 +251,9 @@ class SchedulerPolicies:
                 for mapping in layout_fisico:
                     modo = mapping.get('mode', 'standard')
                     for _ in (mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                        if modo == 'dynamic_local_t1':
+                        if modo in ('dynamic_local_t1', 'dynamic_local_initial_t1'):
                             new_qc.x(q_sentinel[idx])
-                        elif modo == 'dynamic_local_ramsey':
+                        elif modo in ('dynamic_local_ramsey', 'dynamic_local_initial_ramsey'):
                             new_qc.h(q_sentinel[idx])
                         idx += 1
                         
@@ -273,28 +274,32 @@ class SchedulerPolicies:
                                 island_instructions[i].append(inst)
                                 break
                                 
-                for i in range(len(layout_fisico)):
-                    mitad = len(island_instructions[i]) // 2
-                    for inst in island_instructions[i][:mitad]:
-                        new_qc.append(inst)
-                        
-                new_qc.barrier()
+                if not is_dynamic_local_initial:
+                    for i in range(len(layout_fisico)):
+                        mitad = len(island_instructions[i]) // 2
+                        for inst in island_instructions[i][:mitad]:
+                            new_qc.append(inst)
+
+                    new_qc.barrier()
+                else:
+                    new_qc.delay(1000, q_sentinel, unit='ns')
+                    new_qc.barrier()
                 
                 idx = 0
                 for i, mapping in enumerate(layout_fisico):
                     modo = mapping.get('mode', 'standard')
                     for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                        if modo == 'dynamic_local_t1':
+                        if modo in ('dynamic_local_t1', 'dynamic_local_initial_t1'):
                             new_qc.x(q_sentinel[idx])
-                        elif modo == 'dynamic_local_ramsey':
+                        elif modo in ('dynamic_local_ramsey', 'dynamic_local_initial_ramsey'):
                             new_qc.h(q_sentinel[idx])
                         new_qc.measure(q_sentinel[idx], c_flags[i][j])
                         idx += 1
                         
                 for i in range(len(layout_fisico)):
-                    mitad = len(island_instructions[i]) // 2
+                    inicio = 0 if is_dynamic_local_initial else len(island_instructions[i]) // 2
                     with new_qc.if_test((c_flags[i], 0)):
-                        for inst in island_instructions[i][mitad:]:
+                        for inst in island_instructions[i][inicio:]:
                             new_qc.append(inst)
                             
             elif is_dynamic_global:
