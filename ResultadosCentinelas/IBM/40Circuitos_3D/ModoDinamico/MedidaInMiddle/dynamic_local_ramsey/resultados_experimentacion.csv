@@ -1,0 +1,15 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-07-17 12:35:39;Simulacion;pe_3_mqt.py;[3- 2- 1];[4];dynamic_local_ramsey;10000;8617;86.17
+2026-07-17 12:35:39;Simulacion;grover-v-chain_3_mqt.py;[106- 105- 104];[117];dynamic_local_ramsey;10000;8669;86.69
+2026-07-17 12:35:39;Simulacion;adder_n13_vq.py;[20- 21- 36- 41- 42- 43- 44- 45- 37- 25- 26- 27- 28];[56];dynamic_local_ramsey;10000;8672;86.72
+2026-07-17 12:35:39;Simulacion;grover-noancilla_4_mqt.py;[15- 14- 13- 12];[11];dynamic_local_ramsey;10000;8630;86.30
+2026-07-17 12:35:39;Simulacion;grover_3_vq.py;[143- 144- 145];[142];dynamic_local_ramsey;10000;8640;86.40
+2026-07-17 12:35:39;Simulacion;pe_5_mqt.py;[135- 134- 133- 132- 131];[130];dynamic_local_ramsey;10000;8589;85.89
+2026-07-17 12:36:00;Simulacion;pe_4_mqt.py;[105- 104- 103- 96];[83];dynamic_local_ramsey;10000;8708;87.08
+2026-07-17 12:36:00;Simulacion;pe_5_vq.py;[15- 14- 13- 12- 11- 10];[19];dynamic_local_ramsey;10000;8731;87.31
+2026-07-17 12:36:10;Simulacion;adder_n4_vq.py;[56- 43- 42- 41];[40];dynamic_local_ramsey;10000;8668;86.68
+2026-07-17 12:36:10;Simulacion;grover_7_vq.py;[121- 122- 123- 136- 143- 144- 145];[142];dynamic_local_ramsey;10000;8620;86.20
+2026-07-17 12:36:10;Simulacion;dj_indep_5_mqt.py;[115- 99- 95- 94- 93];[92];dynamic_local_ramsey;10000;8659;86.59
+2026-07-17 12:36:10;Simulacion;pe_2_vq.py;[135- 139- 155];[154];dynamic_local_ramsey;10000;8689;86.89
+2026-07-17 12:36:12;Simulacion;grover-v-chain_4_mqt.py;[1- 2- 3- 16];[23];dynamic_local_ramsey;10000;8668;86.68
+2026-07-17 12:36:12;Simulacion;dj_indep_7_mqt.py;[106- 105- 104- 103- 96- 83- 84];[117];dynamic_local_ramsey;10000;8715;87.15

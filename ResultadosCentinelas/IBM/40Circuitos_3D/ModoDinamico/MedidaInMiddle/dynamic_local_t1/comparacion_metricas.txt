@@ -1,0 +1,63 @@
+Circuito: adder_n4_vq.py
+  - Hellinger: 0.0172
+  - JSD:       0.0166
+
+Circuito: pe_5_mqt.py
+  - Hellinger: 0.0162
+  - JSD:       0.0162
+
+Circuito: pe_4_mqt.py
+  - Hellinger: 0.0150
+  - JSD:       0.0150
+
+Circuito: grover_3_vq.py
+  - Hellinger: 0.0166
+  - JSD:       0.0166
+
+Circuito: pe_5_vq.py
+  - Hellinger: 0.0288
+  - JSD:       0.0286
+
+Circuito: dj_indep_4_mqt.py
+  - Hellinger: 0.0145
+  - JSD:       0.0143
+
+Circuito: dj_indep_5_mqt.py
+  - Hellinger: 0.0157
+  - JSD:       0.0156
+
+Circuito: grover-noancilla_4_mqt.py
+  - Hellinger: 0.0210
+  - JSD:       0.0210
+
+Circuito: pe_3_mqt.py
+  - Hellinger: 0.0109
+  - JSD:       0.0109
+
+Circuito: adder_n10_vq.py
+  - Hellinger: 0.0831
+  - JSD:       0.0737
+
+Circuito: pe_2_vq.py
+  - Hellinger: 0.0133
+  - JSD:       0.0133
+
+Circuito: grover-v-chain_4_mqt.py
+  - Hellinger: 0.0232
+  - JSD:       0.0232
+
+Circuito: grover-v-chain_3_mqt.py
+  - Hellinger: 0.0094
+  - JSD:       0.0094
+
+Circuito: dj_indep_7_mqt.py
+  - Hellinger: 0.0352
+  - JSD:       0.0329
+
+Circuito: grover_7_vq.py
+  - Hellinger: 0.0697
+  - JSD:       0.0695
+
+Resumen global
+  - Media Hellinger: 0.0260
+  - Media JSD:       0.0251

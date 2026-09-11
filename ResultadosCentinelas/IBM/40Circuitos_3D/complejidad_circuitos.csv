@@ -1,0 +1,17 @@
+Circuito_Nombre;Qubits_Logicos;Profundidad;Total_Puertas;Puertas_CX_Multi
+dj_indep_4_mqt.py;4;6;14;3
+dj_indep_5_mqt.py;5;7;18;4
+dj_indep_7_mqt.py;7;9;26;6
+adder_n10_vq.py;10;7;21;12
+adder_n13_vq.py;13;8;29;16
+adder_n4_vq.py;4;5;8;4
+grover-noancilla_4_mqt.py;4;34;49;28
+grover-v-chain_3_mqt.py;3;10;17;6
+grover-v-chain_4_mqt.py;4;34;49;28
+grover_3_vq.py;3;10;19;2
+grover_7_vq.py;7;14;39;8
+pe_2_vq.py;3;7;10;3
+pe_3_mqt.py;3;7;11;3
+pe_4_mqt.py;4;9;16;5
+pe_5_mqt.py;5;14;26;12
+pe_5_vq.py;6;15;30;15

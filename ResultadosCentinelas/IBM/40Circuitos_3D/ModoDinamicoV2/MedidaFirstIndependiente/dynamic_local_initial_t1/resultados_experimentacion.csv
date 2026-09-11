@@ -1,0 +1,36 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-09-11 08:56:31;Simulacion;qft_3_mqt.py;[45- 37- 25];[44];dynamic_local_initial_t1;10000;9863;98.63
+2026-09-11 08:56:31;Simulacion;dj_indep_5_mqt.py;[142- 143- 136- 123- 124];[141];dynamic_local_initial_t1;10000;9897;98.97
+2026-09-11 08:56:31;Simulacion;pe_5_vq.py;[15- 19- 35- 34- 33- 32];[39];dynamic_local_initial_t1;10000;9881;98.81
+2026-09-11 08:56:31;Simulacion;pe_7_mqt.py;[83- 84- 85- 86- 87- 88- 89];[90];dynamic_local_initial_t1;10000;9893;98.93
+2026-09-11 08:56:31;Simulacion;pe_6_vq.py;[132- 131- 138- 151- 152- 153- 154];[130];dynamic_local_initial_t1;10000;8830;88.30
+2026-09-11 08:56:31;Simulacion;shor_mod15_mqt.py;[1- 2- 3- 4- 5];[6];dynamic_local_initial_t1;10000;8389;83.89
+2026-09-11 08:56:31;Simulacion;qft_2_mqt.py;[50- 49];[38];dynamic_local_initial_t1;10000;8289;82.89
+2026-09-11 08:56:35;Simulacion;pe_4_mqt.py;[142- 143- 136- 123];[141];dynamic_local_initial_t1;10000;9898;98.98
+2026-09-11 08:56:35;Simulacion;qft_6_mqt.py;[45- 37- 25- 24- 23- 22];[44];dynamic_local_initial_t1;10000;9842;98.42
+2026-09-11 08:56:35;Simulacion;pe_6_mqt.py;[15- 19- 35- 34- 33- 32];[39];dynamic_local_initial_t1;10000;9854;98.54
+2026-09-11 08:56:35;Simulacion;bv_4_vq.py;[90- 89- 88- 87];[86];dynamic_local_initial_t1;10000;9224;92.24
+2026-09-11 08:56:35;Simulacion;dj_indep_7_mqt.py;[132- 131- 138- 151- 152- 153- 154];[130];dynamic_local_initial_t1;10000;9115;91.15
+2026-09-11 08:56:35;Simulacion;pe_5_mqt.py;[6- 7- 8- 9- 10];[5];dynamic_local_initial_t1;10000;8889;88.89
+2026-09-11 08:56:35;Simulacion;bv_2_vq.py;[50- 49];[38];dynamic_local_initial_t1;10000;8552;85.52
+2026-09-11 08:56:38;Simulacion;kickback_7_vq.py;[142- 143- 136- 123- 122- 121- 116];[141];dynamic_local_initial_t1;10000;9893;98.93
+2026-09-11 08:56:38;Simulacion;grover_9_vq.py;[45- 37- 25- 24- 23- 16- 3- 2- 1];[44];dynamic_local_initial_t1;10000;9850;98.50
+2026-09-11 08:56:38;Simulacion;adder_n7_vq.py;[39- 33- 34- 35- 19- 15- 14];[13];dynamic_local_initial_t1;10000;8401;84.01
+2026-09-11 08:56:38;Simulacion;grover-noancilla_3_mqt.py;[90- 89- 88];[87];dynamic_local_initial_t1;10000;5259;52.59
+2026-09-11 08:56:38;Simulacion;qft_3_vq.py;[132- 131- 130];[138];dynamic_local_initial_t1;10000;7066;70.66
+2026-09-11 08:56:38;Simulacion;pe_3_mqt.py;[83- 82- 81];[76];dynamic_local_initial_t1;10000;7257;72.57
+2026-09-11 08:56:45;Simulacion;qft_4_mqt.py;[142- 143- 136- 123];[141];dynamic_local_initial_t1;10000;9896;98.96
+2026-09-11 08:56:45;Simulacion;bv_5_vq.py;[45- 37- 25- 24- 23];[44];dynamic_local_initial_t1;10000;9870;98.70
+2026-09-11 08:56:45;Simulacion;bv_3_vq.py;[15- 14- 13];[19];dynamic_local_initial_t1;10000;9801;98.01
+2026-09-11 08:56:45;Simulacion;grover-v-chain_3_mqt.py;[90- 89- 88];[87];dynamic_local_initial_t1;10000;9599;95.99
+2026-09-11 08:56:45;Simulacion;grover_3_vq.py;[132- 131- 130];[138];dynamic_local_initial_t1;10000;9843;98.43
+2026-09-11 08:56:45;Simulacion;grover-v-chain_4_mqt.py;[71- 58- 51- 50];[52];dynamic_local_initial_t1;10000;9890;98.90
+2026-09-11 08:56:45;Simulacion;dj_indep_4_mqt.py;[83- 82- 81- 80];[76];dynamic_local_initial_t1;10000;8204;82.04
+2026-09-11 08:56:45;Simulacion;adder_n4_vq.py;[6- 7- 8- 9];[5];dynamic_local_initial_t1;10000;8860;88.60
+2026-09-11 08:56:49;Simulacion;adder_n10_vq.py;[142- 143- 136- 123- 122- 121- 116- 101- 102- 103];[141];dynamic_local_initial_t1;10000;9897;98.97
+2026-09-11 08:56:49;Simulacion;qft_7_vq.py;[1- 2- 3- 16- 23- 24- 25];[37];dynamic_local_initial_t1;10000;9674;96.74
+2026-09-11 08:56:49;Simulacion;grover_7_vq.py;[39- 33- 34- 35- 19- 15- 14];[13];dynamic_local_initial_t1;10000;9602;96.02
+2026-09-11 08:56:49;Simulacion;bv_9_vq.py;[90- 89- 78- 69- 68- 67- 66- 65- 64];[88];dynamic_local_initial_t1;10000;7234;72.34
+2026-09-11 08:56:49;Simulacion;grover-noancilla_4_mqt.py;[132- 131- 138- 151];[130];dynamic_local_initial_t1;10000;8863;88.63
+2026-09-11 08:57:07;Simulacion;shor_mod21_mqt.py;[143- 136- 123- 122- 121- 116- 101- 102];[142];dynamic_local_initial_t1;10000;9852;98.52
+2026-09-11 08:57:07;Simulacion;pe_2_vq.py;[45- 37- 25];[44];dynamic_local_initial_t1;10000;9445;94.45

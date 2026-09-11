@@ -1,0 +1,35 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-09-02 12:24:05;Simulacion;adder_n4_vq.py;[1- 2- 3- 4];[5];dynamic_local_t1;10000;9939;99.39
+2026-09-02 12:24:05;Simulacion;grover_9_vq.py;[142- 143- 136- 123- 122- 121- 116- 101- 102];[141];dynamic_local_t1;10000;9869;98.69
+2026-09-02 12:24:05;Simulacion;qft_4_mqt.py;[54- 55- 59- 75];[74];dynamic_local_t1;10000;9930;99.30
+2026-09-02 12:24:05;Simulacion;grover-v-chain_4_mqt.py;[132- 131- 130- 129];[138];dynamic_local_t1;10000;9971;99.71
+2026-09-02 12:24:05;Simulacion;grover_7_vq.py;[37- 25- 26- 27- 28- 29- 38];[45];dynamic_local_t1;10000;9737;97.37
+2026-09-02 12:24:05;Simulacion;adder_n10_vq.py;[90- 89- 78- 69- 68- 67- 66- 65- 77- 85];[84];dynamic_local_t1;10000;8825;88.25
+2026-09-02 12:24:05;Simulacion;pe_3_mqt.py;[41- 36- 21];[20];dynamic_local_t1;10000;9122;91.22
+2026-09-02 12:24:05;Simulacion;bv_5_vq.py;[15- 14- 13- 12- 11];[10];dynamic_local_t1;10000;9385;93.85
+2026-09-02 12:24:05;Simulacion;grover-noancilla_4_mqt.py;[95- 99- 115- 114];[94];dynamic_local_t1;10000;9113;91.13
+2026-09-02 12:24:09;Simulacion;bv_3_vq.py;[4- 3- 2];[1];dynamic_local_t1;10000;9826;98.26
+2026-09-02 12:24:09;Simulacion;bv_4_vq.py;[142- 143- 136- 123];[141];dynamic_local_t1;10000;9929;99.29
+2026-09-02 12:24:09;Simulacion;grover-v-chain_3_mqt.py;[54- 55- 59];[75];dynamic_local_t1;10000;9951;99.51
+2026-09-02 12:24:09;Simulacion;grover_3_vq.py;[132- 131- 130];[138];dynamic_local_t1;10000;9960;99.60
+2026-09-02 12:24:09;Simulacion;kickback_7_vq.py;[106- 105- 104- 103- 96- 83- 84];[102];dynamic_local_t1;10000;9274;92.74
+2026-09-02 12:24:09;Simulacion;shor_mod15_mqt.py;[37- 25- 26- 27- 28];[45];dynamic_local_t1;10000;9822;98.22
+2026-09-02 12:24:09;Simulacion;qft_6_mqt.py;[90- 89- 78- 69- 70- 71];[68];dynamic_local_t1;10000;9931;99.31
+2026-09-02 12:24:09;Simulacion;grover-noancilla_3_mqt.py;[41- 36- 21];[20];dynamic_local_t1;10000;9409;94.09
+2026-09-02 12:24:09;Simulacion;bv_2_vq.py;[15- 14];[13];dynamic_local_t1;10000;9036;90.36
+2026-09-02 12:24:09;Simulacion;dj_indep_4_mqt.py;[95- 99- 115- 114];[94];dynamic_local_t1;10000;9303;93.03
+2026-09-02 12:24:13;Simulacion;pe_5_mqt.py;[1- 2- 3- 4- 5];[16];dynamic_local_t1;10000;9947;99.47
+2026-09-02 12:24:13;Simulacion;pe_4_mqt.py;[142- 143- 136- 123];[141];dynamic_local_t1;10000;9917;99.17
+2026-09-02 12:24:13;Simulacion;qft_3_vq.py;[54- 55- 59];[75];dynamic_local_t1;10000;9921;99.21
+2026-09-02 12:24:13;Simulacion;pe_6_mqt.py;[106- 105- 104- 103- 96- 83];[84];dynamic_local_t1;10000;9889;98.89
+2026-09-02 12:24:13;Simulacion;adder_n7_vq.py;[37- 45- 44- 43- 42- 41- 36];[56];dynamic_local_t1;10000;9943;99.43
+2026-09-02 12:24:13;Simulacion;qft_3_mqt.py;[132- 131- 130];[138];dynamic_local_t1;10000;9973;99.73
+2026-09-02 12:24:13;Simulacion;qft_2_mqt.py;[15- 14];[13];dynamic_local_t1;10000;9789;97.89
+2026-09-02 12:24:13;Simulacion;qft_7_vq.py;[90- 89- 78- 69- 70- 71- 58];[68];dynamic_local_t1;10000;9934;99.34
+2026-09-02 12:24:13;Simulacion;pe_2_vq.py;[95- 99- 115];[114];dynamic_local_t1;10000;9167;91.67
+2026-09-02 12:24:54;Simulacion;dj_indep_5_mqt.py;[1- 2- 3- 4- 5];[16];dynamic_local_t1;10000;9938;99.38
+2026-09-02 12:24:54;Simulacion;pe_5_vq.py;[142- 143- 136- 123- 122- 121];[141];dynamic_local_t1;10000;9925;99.25
+2026-09-02 12:24:54;Simulacion;pe_7_mqt.py;[54- 55- 59- 75- 74- 73- 79];[93];dynamic_local_t1;10000;9853;98.53
+2026-09-02 12:24:54;Simulacion;pe_6_vq.py;[37- 45- 44- 43- 42- 41- 36];[56];dynamic_local_t1;10000;9931;99.31
+2026-09-02 12:24:54;Simulacion;dj_indep_7_mqt.py;[132- 131- 130- 129- 118- 109- 110];[111];dynamic_local_t1;10000;8982;89.82
+2026-09-02 12:24:54;Simulacion;shor_mod21_mqt.py;[15- 14- 13- 12- 11- 18- 31- 30];[32];dynamic_local_t1;10000;8393;83.93

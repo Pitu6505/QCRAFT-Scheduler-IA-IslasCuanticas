@@ -1,0 +1,48 @@
+🛡️ [26096575210880464103996286615491812029] - Circuit: bv_4_vq.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [8302782749563046674423237711915676981] - Circuit: grover-noancilla_4_mqt.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [262247967465106502661121411770646343352] - Circuit: adder_n10_vq.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [153473987421849682714041940041932432442] - Circuit: pe_7_mqt.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [282097728783764645975642658343307031621] - Circuit: qft_4_mqt.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [3499005198002952198778054744842435789] - Circuit: adder_n7_vq.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [70164051478414714975479263506365642088] - Circuit: grover-v-chain_3_mqt.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [219848137002344511396584547595722245498] - Circuit: adder_n4_vq.py | Shots válidos: 1369/10000 (13.69%)
+🛡️ [170517707324431674195465936330962224768] - Circuit: shor_mod15_mqt.py | Shots válidos: 1369/10000 (13.69%)
+127.0.0.1 - - [16/Jul/2026 12:34:32] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Jul/2026 12:34:32] "POST /unscheduler HTTP/1.1" 200 -
+Ejecutando política de Islas Cuánticas (con edges)...
+⚠️ La cola está vacía, deteniendo temporizador.
+🛡️ [308704605483004354386400616276747085687] - Circuit: kickback_7_vq.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [285361427465974666230908255373833569545] - Circuit: qft_3_mqt.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [298680905162295382471276895814645103215] - Circuit: grover_3_vq.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [287224104163729387238979967017204790211] - Circuit: grover_9_vq.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [9633705191631769876725701744050883626] - Circuit: pe_4_mqt.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [75937915393423796905879995006496090137] - Circuit: pe_2_vq.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [187375546626708682689041553295859994205] - Circuit: bv_9_vq.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [198748224574192503009766042531241651519] - Circuit: pe_6_mqt.py | Shots válidos: 356/10000 (3.56%)
+🛡️ [289947728407952790175369464301640216357] - Circuit: qft_7_vq.py | Shots válidos: 356/10000 (3.56%)
+127.0.0.1 - - [16/Jul/2026 12:34:45] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Jul/2026 12:34:45] "POST /unscheduler HTTP/1.1" 200 -
+🛡️ [235786594151633469345947431092373277946] - Circuit: bv_2_vq.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [187520963984190932527191143223338673440] - Circuit: dj_indep_7_mqt.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [299106730407208805201708972490526923514] - Circuit: shor_mod21_mqt.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [193132689895954133076515443216255497699] - Circuit: bv_5_vq.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [20669195545888403612801792152938972754] - Circuit: qft_2_mqt.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [237751571091757042335703440226655956250] - Circuit: adder_n13_vq.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [294785635107682738312115089398854094970] - Circuit: pe_5_mqt.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [118461389523144274001776066727440067169] - Circuit: pe_3_mqt.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [249111514804883687055344020569208307721] - Circuit: qft_3_vq.py | Shots válidos: 824/10000 (8.24%)
+🛡️ [157914768286840626266709069171029037709] - Circuit: dj_indep_5_mqt.py | Shots válidos: 824/10000 (8.24%)
+127.0.0.1 - - [16/Jul/2026 12:34:48] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Jul/2026 12:34:48] "POST /unscheduler HTTP/1.1" 200 -
+Ejecutando política de Islas Cuánticas (con edges)...
+⚠️ La cola está vacía, deteniendo temporizador.
+Ejecutando política de Islas Cuánticas (con edges)...
+⚠️ La cola está vacía, deteniendo temporizador.
+🛡️ [216495718911374987078484943804342323789] - Circuit: dj_indep_4_mqt.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [218164605605305477462364221658210192526] - Circuit: grover-noancilla_3_mqt.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [229985201906670282295747023619834219230] - Circuit: bv_3_vq.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [109324326390384385806317066615596031788] - Circuit: pe_5_vq.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [102807796576383906287749560201173187903] - Circuit: grover-v-chain_4_mqt.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [337674717450139954245726750857074396688] - Circuit: pe_6_vq.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [148602478954802891682702859112080014897] - Circuit: qft_6_mqt.py | Shots válidos: 1433/10000 (14.33%)
+🛡️ [129868895609909673058080395362503468645] - Circuit: grover_7_vq.py | Shots válidos: 1433/10000 (14.33%)

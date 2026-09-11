@@ -1,0 +1,64 @@
+🛡️ Circuito FTQC generado (1 sensores | Modo Dinámico: Falso). Layout final: [20, 21, 22, 23, 16, 3, 36]
+🟦 Usando layout físico plano: [20, 21, 22, 23, 16, 3, 36]
+🛡️ [190011936744962599236298399723156463369] - Circuit: kickback_7_vq.py | Shots válidos: 8807/10000 (88.07%)
+🛡️ [228727217001899233973256484863308240201] - Circuit: shor_mod15_mqt.py | Shots válidos: 8755/10000 (87.55%)
+🛡️ [113018010849284993669476864319036686081] - Circuit: adder_n4_vq.py | Shots válidos: 7801/10000 (78.01%)
+🛡️ [210828917791009670112379631074901417849] - Circuit: grover-noancilla_4_mqt.py | Shots válidos: 8926/10000 (89.26%)
+🛡️ [230459097104991196723608487348353860236] - Circuit: pe_6_mqt.py | Shots válidos: 8066/10000 (80.66%)
+🛡️ [290101982452521324131421535465766236201] - Circuit: qft_4_mqt.py | Shots válidos: 8733/10000 (87.33%)
+🛡️ [260760064738363002146742560696241385989] - Circuit: shor_mod21_mqt.py | Shots válidos: 8909/10000 (89.09%)
+🛡️ [243995099546313187893558822076625409416] - Circuit: bv_2_vq.py | Shots válidos: 5765/10000 (57.65%)
+127.0.0.1 - - [17/Jul/2026 10:13:42] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:13:42] "POST /unscheduler HTTP/1.1" 200 -
+🛡️ [58370917375758771778125850033818404463] - Circuit: bv_4_vq.py | Shots válidos: 7940/10000 (79.40%)
+🛡️ [130452252896920639248517776970027238857] - Circuit: qft_3_mqt.py | Shots válidos: 6638/10000 (66.38%)
+🛡️ [99363098196581921810021599799284786209] - Circuit: grover-v-chain_3_mqt.py | Shots válidos: 8325/10000 (83.25%)
+🛡️ [13736443451065369246254276668459821350] - Circuit: grover_9_vq.py | Shots válidos: 7735/10000 (77.35%)
+🛡️ [193796810601236990908246158898890013976] - Circuit: qft_7_vq.py | Shots válidos: 5843/10000 (58.43%)
+🛡️ [317626951093835373810236424324700220911] - Circuit: pe_2_vq.py | Shots válidos: 8213/10000 (82.13%)
+🛡️ [333937833946381732622049053362591537255] - Circuit: grover_3_vq.py | Shots válidos: 8269/10000 (82.69%)
+🛡️ [76338731697712807189586205494768241423] - Circuit: qft_2_mqt.py | Shots válidos: 5650/10000 (56.50%)
+127.0.0.1 - - [17/Jul/2026 10:13:48] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:13:48] "POST /unscheduler HTTP/1.1" 200 -
+Ejecutando política de Islas Cuánticas (con edges)...
+⚠️ La cola está vacía, deteniendo temporizador.
+🛡️ [210330838725919647746611550614322405107] - Circuit: pe_7_mqt.py | Shots válidos: 8519/10000 (85.19%)
+🛡️ [36979697943429890761569924440553543807] - Circuit: adder_n10_vq.py | Shots válidos: 8037/10000 (80.37%)
+🛡️ [101525413895562772052729163095207773677] - Circuit: bv_9_vq.py | Shots válidos: 8438/10000 (84.38%)
+🛡️ [193258731196906796665018754506134562799] - Circuit: adder_n7_vq.py | Shots válidos: 7314/10000 (73.14%)
+🛡️ [245034676046066879424249855924290274478] - Circuit: bv_3_vq.py | Shots válidos: 8972/10000 (89.72%)
+🛡️ [292191493350036685308047706143059251588] - Circuit: pe_4_mqt.py | Shots válidos: 7868/10000 (78.68%)
+127.0.0.1 - - [17/Jul/2026 10:13:52] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:13:52] "POST /unscheduler HTTP/1.1" 200 -
+🛡️ [251615108667587058912898449556039667894] - Circuit: qft_3_vq.py | Shots válidos: 9096/10000 (90.96%)
+🛡️ [318523583809194639297851110298488954434] - Circuit: bv_5_vq.py | Shots válidos: 8793/10000 (87.93%)
+🛡️ [41829899436973490848015172085365535323] - Circuit: qft_6_mqt.py | Shots válidos: 8442/10000 (84.42%)
+🛡️ [214971782742233760610092139756124637358] - Circuit: grover-noancilla_3_mqt.py | Shots válidos: 9122/10000 (91.22%)
+🛡️ [44698754009651115645961241017740384449] - Circuit: grover-v-chain_4_mqt.py | Shots válidos: 8547/10000 (85.47%)
+🛡️ [249076537970048665538762310885599296039] - Circuit: pe_3_mqt.py | Shots válidos: 8879/10000 (88.79%)
+🛡️ [137065486427249888133071007427325967269] - Circuit: dj_indep_5_mqt.py | Shots válidos: 4924/10000 (49.24%)
+127.0.0.1 - - [17/Jul/2026 10:13:59] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:13:59] "POST /unscheduler HTTP/1.1" 200 -
+Ejecutando política de Islas Cuánticas (con edges)...
+⚠️ La cola está vacía, deteniendo temporizador.
+🛡️ [198237532658074953720375731759699477002] - Circuit: pe_5_mqt.py | Shots válidos: 7580/10000 (75.80%)
+🛡️ [155623498610636158625362722081448058339] - Circuit: dj_indep_4_mqt.py | Shots válidos: 7216/10000 (72.16%)
+🛡️ [43232687152289575682021211170293690663] - Circuit: adder_n13_vq.py | Shots válidos: 7066/10000 (70.66%)
+🛡️ [8057755244414663645750550138979552566] - Circuit: dj_indep_7_mqt.py | Shots válidos: 8671/10000 (86.71%)
+🛡️ [68940615890470381306526776184943651667] - Circuit: pe_6_vq.py | Shots válidos: 6853/10000 (68.53%)
+🛡️ [117583266476976494707712285204887009066] - Circuit: grover_7_vq.py | Shots válidos: 8574/10000 (85.74%)
+127.0.0.1 - - [17/Jul/2026 10:14:04] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:14:04] "POST /unscheduler HTTP/1.1" 200 -
+🛡️ [160146489761753302797218229993225818255] - Circuit: pe_5_vq.py | Shots válidos: 8933/10000 (89.33%)
+127.0.0.1 - - [17/Jul/2026 10:14:08] "POST /unscheduler HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Jul/2026 10:14:08] "POST /unscheduler HTTP/1.1" 200 -
+Ejecutando política de Islas Cuánticas (con edges).
+
+
+ [DEBUG] Resultado de placements:
+  - id=198237532658074953720375731759699477002, qubits físicos={'data': [3, 16, 23, 22, 21], 'sentinel': [20], 'mode': 't1_decay_local'}
+  - id=155623498610636158625362722081448058339, qubits físicos={'data': [105, 104, 103, 96], 'sentinel': [83], 'mode': 't1_decay_local'}
+  - id=43232687152289575682021211170293690663, qubits físicos={'data': [115, 99, 95, 94, 93, 92, 91, 90, 89, 78, 69, 70, 71], 'sentinel': [88], 'mode': 't1_decay_local'}
+  - id=8057755244414663645750550138979552566, qubits físicos={'data': [121, 122, 123, 136, 143, 144, 145], 'sentinel': [142], 'mode': 't1_decay_local'}
+  - id=68940615890470381306526776184943651667, qubits físicos={'data': [135, 134, 133, 132, 131, 130, 129], 'sentinel': [138], 'mode': 't1_decay_local'}
+  - id=117583266476976494707712285204887009066, qubits físicos={'data': [15, 14, 13, 12, 11, 10, 9], 'sentinel': [19], 'mode': 't1_decay_local'}

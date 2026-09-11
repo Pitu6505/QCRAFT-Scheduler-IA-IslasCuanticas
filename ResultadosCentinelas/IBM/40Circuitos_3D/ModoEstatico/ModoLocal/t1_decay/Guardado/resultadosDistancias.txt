@@ -1,0 +1,123 @@
+Circuito: pe_3_mqt.py
+  - Hellinger: 0.0729
+  - JSD:       0.0727
+
+Circuito: kickback_7_vq.py
+  - Hellinger: 0.0031
+  - JSD:       0.0031
+
+Circuito: adder_n7_vq.py
+  - Hellinger: 0.3206
+  - JSD:       0.3085
+
+Circuito: qft_3_mqt.py
+  - Hellinger: 0.0905
+  - JSD:       0.0904
+
+Circuito: dj_indep_5_mqt.py
+  - Hellinger: 0.0838
+  - JSD:       0.0833
+
+Circuito: shor_mod15_mqt.py
+  - Hellinger: 0.2474
+  - JSD:       0.2367
+
+Circuito: grover_7_vq.py
+  - Hellinger: 0.2449
+  - JSD:       0.2406
+
+Circuito: grover-noancilla_3_mqt.py
+  - Hellinger: 0.1222
+  - JSD:       0.1209
+
+Circuito: grover-noancilla_4_mqt.py
+  - Hellinger: 0.1906
+  - JSD:       0.1898
+
+Circuito: grover-v-chain_3_mqt.py
+  - Hellinger: 0.1115
+  - JSD:       0.1104
+
+Circuito: pe_4_mqt.py
+  - Hellinger: 0.2028
+  - JSD:       0.1990
+
+Circuito: adder_n4_vq.py
+  - Hellinger: 0.1578
+  - JSD:       0.1471
+
+Circuito: grover_9_vq.py
+  - Hellinger: 0.2666
+  - JSD:       0.2546
+
+Circuito: pe_2_vq.py
+  - Hellinger: 0.0741
+  - JSD:       0.0736
+
+Circuito: bv_3_vq.py
+  - Hellinger: 0.0353
+  - JSD:       0.0351
+
+Circuito: qft_7_vq.py
+  - Hellinger: 0.2245
+  - JSD:       0.2221
+
+Circuito: pe_6_vq.py
+  - Hellinger: 0.2429
+  - JSD:       0.2380
+
+Circuito: pe_7_mqt.py
+  - Hellinger: 0.1497
+  - JSD:       0.1481
+
+Circuito: grover-v-chain_4_mqt.py
+  - Hellinger: 0.2333
+  - JSD:       0.2314
+
+Circuito: bv_2_vq.py
+  - Hellinger: 0.0330
+  - JSD:       0.0327
+
+Circuito: dj_indep_7_mqt.py
+  - Hellinger: 0.1467
+  - JSD:       0.1448
+
+Circuito: qft_2_mqt.py
+  - Hellinger: 0.0996
+  - JSD:       0.0995
+
+Circuito: pe_6_mqt.py
+  - Hellinger: 0.2095
+  - JSD:       0.2057
+
+Circuito: pe_5_vq.py
+  - Hellinger: 0.1595
+  - JSD:       0.1569
+
+Circuito: qft_4_mqt.py
+  - Hellinger: 0.1636
+  - JSD:       0.1629
+
+Circuito: qft_6_mqt.py
+  - Hellinger: 0.1139
+  - JSD:       0.1136
+
+Circuito: bv_4_vq.py
+  - Hellinger: 0.1323
+  - JSD:       0.1303
+
+Circuito: grover_3_vq.py
+  - Hellinger: 0.1435
+  - JSD:       0.1411
+
+Circuito: shor_mod21_mqt.py
+  - Hellinger: 0.0702
+  - JSD:       0.0701
+
+Circuito: pe_5_mqt.py
+  - Hellinger: 0.2969
+  - JSD:       0.2894
+
+Circuito: adder_n10_vq.py
+  - Hellinger: 0.2938
+  - JSD:       0.2726

@@ -1,0 +1,3 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-08-24 13:01:06;Simulacion;adder_n4_vq.py;[99- 90- 81- 82];[91];t1_decay;1000;512;51.20
+2026-08-24 13:01:06;Simulacion;grover_3_vq.py;[15- 6- 7];[16];t1_decay;1000;512;51.20

@@ -1,0 +1,36 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-09-11 08:59:37;Simulacion;dj_indep_7_mqt.py;[142- 143- 136- 123- 122- 121- 116];[141];dynamic_local_initial_ramsey;10000;9737;97.37
+2026-09-11 08:59:37;Simulacion;qft_3_mqt.py;[45- 37- 25];[44];dynamic_local_initial_ramsey;10000;9696;96.96
+2026-09-11 08:59:37;Simulacion;pe_6_vq.py;[39- 33- 34- 35- 19- 15- 14];[13];dynamic_local_initial_ramsey;10000;9194;91.94
+2026-09-11 08:59:37;Simulacion;shor_mod15_mqt.py;[90- 89- 78- 69- 68];[88];dynamic_local_initial_ramsey;10000;4166;41.66
+2026-09-11 08:59:37;Simulacion;pe_5_mqt.py;[1- 2- 3- 4- 5];[6];dynamic_local_initial_ramsey;10000;5865;58.65
+2026-09-11 08:59:37;Simulacion;bv_4_vq.py;[132- 131- 138- 151];[130];dynamic_local_initial_ramsey;10000;4596;45.96
+2026-09-11 08:59:37;Simulacion;qft_6_mqt.py;[83- 82- 81- 76- 61- 62];[84];dynamic_local_initial_ramsey;10000;5208;52.08
+2026-09-11 08:59:37;Simulacion;qft_2_mqt.py;[50- 49];[38];dynamic_local_initial_ramsey;10000;5432;54.32
+2026-09-11 08:59:42;Simulacion;pe_7_mqt.py;[142- 143- 136- 123- 122- 121- 116];[141];dynamic_local_initial_ramsey;10000;9757;97.57
+2026-09-11 08:59:42;Simulacion;kickback_7_vq.py;[1- 2- 3- 16- 23- 24- 25];[37];dynamic_local_initial_ramsey;10000;9806;98.06
+2026-09-11 08:59:42;Simulacion;grover_9_vq.py;[83- 84- 85- 77- 65- 64- 63- 62- 61];[76];dynamic_local_initial_ramsey;10000;9615;96.15
+2026-09-11 08:59:42;Simulacion;pe_3_mqt.py;[15- 14- 13];[19];dynamic_local_initial_ramsey;10000;6438;64.38
+2026-09-11 08:59:42;Simulacion;pe_6_mqt.py;[131- 138- 151- 152- 153- 154];[132];dynamic_local_initial_ramsey;10000;7476;74.76
+2026-09-11 08:59:42;Simulacion;pe_4_mqt.py;[71- 58- 51- 50];[52];dynamic_local_initial_ramsey;10000;7563;75.63
+2026-09-11 08:59:42;Simulacion;pe_5_vq.py;[90- 91- 92- 93- 94- 95];[89];dynamic_local_initial_ramsey;10000;2588;25.88
+2026-09-11 08:59:47;Simulacion;adder_n7_vq.py;[142- 143- 136- 123- 122- 121- 116];[141];dynamic_local_initial_ramsey;10000;9761;97.61
+2026-09-11 08:59:47;Simulacion;grover-v-chain_4_mqt.py;[45- 37- 25- 24];[23];dynamic_local_initial_ramsey;10000;9816;98.16
+2026-09-11 08:59:47;Simulacion;dj_indep_5_mqt.py;[15- 19- 35- 34- 33];[39];dynamic_local_initial_ramsey;10000;9864;98.64
+2026-09-11 08:59:47;Simulacion;qft_3_vq.py;[90- 89- 88];[87];dynamic_local_initial_ramsey;10000;9459;94.59
+2026-09-11 08:59:47;Simulacion;grover-noancilla_4_mqt.py;[132- 131- 138- 151];[130];dynamic_local_initial_ramsey;10000;9871;98.71
+2026-09-11 08:59:47;Simulacion;dj_indep_4_mqt.py;[83- 82- 81- 80];[76];dynamic_local_initial_ramsey;10000;4594;45.94
+2026-09-11 08:59:47;Simulacion;bv_3_vq.py;[6- 7- 8];[5];dynamic_local_initial_ramsey;10000;5342;53.42
+2026-09-11 08:59:47;Simulacion;bv_2_vq.py;[50- 49];[38];dynamic_local_initial_ramsey;10000;7788;77.88
+2026-09-11 08:59:51;Simulacion;grover_7_vq.py;[142- 143- 136- 123- 122- 121- 116];[141];dynamic_local_initial_ramsey;10000;9748;97.48
+2026-09-11 08:59:51;Simulacion;grover_3_vq.py;[45- 37- 25];[44];dynamic_local_initial_ramsey;10000;1627;16.27
+2026-09-11 08:59:51;Simulacion;grover-v-chain_3_mqt.py;[15- 14- 13];[19];dynamic_local_initial_ramsey;10000;9185;91.85
+2026-09-11 08:59:51;Simulacion;qft_7_vq.py;[83- 84- 85- 86- 87- 88- 89];[90];dynamic_local_initial_ramsey;10000;1001;10.01
+2026-09-11 08:59:51;Simulacion;adder_n4_vq.py;[132- 131- 138- 151];[130];dynamic_local_initial_ramsey;10000;2371;23.71
+2026-09-11 08:59:51;Simulacion;adder_n10_vq.py;[71- 58- 51- 52- 53- 54- 55- 59- 75- 74];[39];dynamic_local_initial_ramsey;10000;4946;49.46
+2026-09-11 08:59:51;Simulacion;grover-noancilla_3_mqt.py;[1- 2- 3];[4];dynamic_local_initial_ramsey;10000;8728;87.28
+2026-09-11 08:59:56;Simulacion;bv_5_vq.py;[45- 37- 25- 24- 23];[44];dynamic_local_initial_ramsey;10000;9656;96.56
+2026-09-11 08:59:56;Simulacion;qft_4_mqt.py;[142- 143- 136- 123];[141];dynamic_local_initial_ramsey;10000;9288;92.88
+2026-09-11 08:59:56;Simulacion;pe_2_vq.py;[15- 14- 13];[19];dynamic_local_initial_ramsey;10000;2825;28.25
+2026-09-11 08:59:56;Simulacion;bv_9_vq.py;[83- 84- 85- 86- 87- 88- 89- 78- 69];[90];dynamic_local_initial_ramsey;10000;8366;83.66
+2026-09-11 08:59:56;Simulacion;shor_mod21_mqt.py;[132- 131- 138- 151- 152- 153- 154- 155];[130];dynamic_local_initial_ramsey;10000;5476;54.76
