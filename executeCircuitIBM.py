@@ -217,46 +217,12 @@ class executeCircuitIBM:
 
         if machine == "local":
             from qiskit_aer import AerSimulator
-            from qiskit_aer.noise import NoiseModel
             from qiskit.primitives import BackendSamplerV2
 
-            # 1. Cargar el ruido real del backend IBM Fez
-            backend_real = self.service.backend("ibm_fez")
-            noise_model = NoiseModel.from_backend(backend_real)
-
-            # 2. Si existe un layout físico calculado por la política, lo aplicamos
-            #    y reducimos el coupling_map al subconjunto de qubits usados.
-            flat_layout = self._flatten_layout(layout_fisico) if layout_fisico is not None else None
-            if flat_layout is not None:
-                used_qubits = sorted(set(flat_layout))
-                remap = {old: new for new, old in enumerate(used_qubits)}
-                reduced_coupling = [
-                    (remap[u], remap[v])
-                    for u, v in backend_real.coupling_map
-                    if u in remap and v in remap
-                ]
-
-                backend = AerSimulator(
-                    noise_model=noise_model,
-                    coupling_map=reduced_coupling,
-                    method='matrix_product_state'
-                )
-                qc_basis = transpile(
-                    circuit,
-                    backend=backend,
-                    optimization_level=0,
-                    initial_layout=flat_layout
-                )
-            else:
-                backend = AerSimulator(
-                    noise_model=noise_model,
-                    coupling_map=backend_real.coupling_map,
-                    method='matrix_product_state'
-                )
-                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
-
+            # La simulacion local es ideal: sin ruido, topologia ni transpilation.
+            backend = AerSimulator()
             sampler = BackendSamplerV2(backend=backend)
-            job = sampler.run([qc_basis], shots=x)
+            job = sampler.run([circuit], shots=x)
             
         else:
             # Load your IBM Quantum account
