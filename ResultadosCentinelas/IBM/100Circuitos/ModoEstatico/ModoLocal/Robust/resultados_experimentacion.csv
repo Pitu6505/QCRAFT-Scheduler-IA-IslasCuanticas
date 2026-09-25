@@ -1,0 +1,101 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-09-21 13:06:26;Simulacion;grover-noancilla_4_mqt.py;[142- 143- 144- 145];[141];robust_local;10000;8477;84.77
+2026-09-21 13:06:26;Simulacion;grover_3_vq.py;[3- 2- 1];[16];robust_local;10000;9136;91.36
+2026-09-21 13:06:26;Simulacion;vqe_indep_4_mqt.py;[87- 86- 85- 84];[83];robust_local;10000;4491;44.91
+2026-09-21 13:06:26;Simulacion;kickback_7_vq.py;[36- 41- 42- 43- 44- 45- 37];[40];robust_local;10000;8091;80.91
+2026-09-21 13:06:26;Simulacion;qft_7_vq.py;[131- 130- 129- 118- 109- 110- 111];[132];robust_local;10000;8112;81.12
+2026-09-21 13:06:26;Simulacion;simon_vq.py;[13- 14- 15- 19- 35- 34];[33];robust_local;10000;6822;68.22
+2026-09-21 13:06:26;Simulacion;qft_3_mqt.py;[75- 74- 73];[59];robust_local;10000;8513;85.13
+2026-09-21 13:06:30;Simulacion;grover_7_vq.py;[36- 21- 22- 23- 16- 3- 2];[1];robust_local;10000;5737;57.37
+2026-09-21 13:06:30;Simulacion;qwalk-noancilla_3_mqt.py;[147- 137- 127];[148];robust_local;10000;1479;14.79
+2026-09-21 13:06:30;Simulacion;bv_5_vq.py;[87- 86- 85- 84- 83];[88];robust_local;10000;5435;54.35
+2026-09-21 13:06:30;Simulacion;qwalk-v-chain_5_mqt.py;[115- 114- 113- 112- 111];[110];robust_local;10000;1722;17.22
+2026-09-21 13:06:30;Simulacion;dj_indep_7_mqt.py;[142- 143- 136- 123- 122- 121- 116];[101];robust_local;10000;7684;76.84
+2026-09-21 13:06:30;Simulacion;simon_vq.py;[13- 14- 15- 19- 35- 34];[33];robust_local;10000;5474;54.74
+2026-09-21 13:06:30;Simulacion;qft_4_mqt.py;[75- 74- 73- 79];[59];robust_local;10000;3737;37.37
+2026-09-21 13:06:30;Simulacion;grover-v-chain_3_mqt.py;[135- 139- 155];[154];robust_local;10000;8823;88.23
+2026-09-21 13:06:34;Simulacion;qft_3_vq.py;[3- 2- 1];[16];robust_local;10000;8547;85.47
+2026-09-21 13:06:34;Simulacion;tsp_indep_5_mqt.py;[36- 41- 42- 43- 44];[45];robust_local;10000;6936;69.36
+2026-09-21 13:06:34;Simulacion;qwalk-v-chain_3_mqt.py;[147- 137- 127];[148];robust_local;10000;2320;23.20
+2026-09-21 13:06:34;Simulacion;grover-v-chain_4_mqt.py;[87- 86- 85- 84];[83];robust_local;10000;2822;28.22
+2026-09-21 13:06:34;Simulacion;grover_9_vq.py;[13- 14- 15- 19- 35- 34- 33- 32- 31];[39];robust_local;10000;7748;77.48
+2026-09-21 13:06:34;Simulacion;dj_indep_4_mqt.py;[115- 114- 113- 112];[111];robust_local;10000;8569;85.69
+2026-09-21 13:06:34;Simulacion;adder_n4_vq.py;[143- 136- 123- 122];[142];robust_local;10000;634;6.34
+2026-09-21 13:06:34;Simulacion;bv_4_vq.py;[75- 74- 73- 79];[59];robust_local;10000;6160;61.60
+2026-09-21 13:06:39;Simulacion;su2_5_vq.py;[142- 143- 144- 145];[141];robust_local;10000;8623;86.23
+2026-09-21 13:06:39;Simulacion;bv_9_vq.py;[127- 126- 125- 117- 105- 104- 103- 102- 101];[106];robust_local;10000;9271;92.71
+2026-09-21 13:06:39;Simulacion;pe_5_vq.py;[1- 2- 3- 16- 23- 22];[24];robust_local;10000;8633;86.33
+2026-09-21 13:06:39;Simulacion;pe_4_mqt.py;[75- 59- 55- 54];[74];robust_local;10000;9564;95.64
+2026-09-21 13:06:39;Simulacion;qaoa_indep_5_mqt.py;[115- 114- 113- 112- 111];[110];robust_local;10000;8574;85.74
+2026-09-21 13:06:39;Simulacion;bv_3_vq.py;[15- 14- 13];[19];robust_local;10000;5117;51.17
+2026-09-21 13:06:43;Simulacion;pe_6_mqt.py;[1- 2- 3- 16- 23- 22];[24];robust_local;10000;7513;75.13
+2026-09-21 13:06:43;Simulacion;tsp_indep_5_mqt.py;[101- 102- 103- 96- 83];[84];robust_local;10000;7771;77.71
+2026-09-21 13:06:43;Simulacion;pe_2_vq.py;[147- 137- 127];[148];robust_local;10000;7639;76.39
+2026-09-21 13:06:43;Simulacion;3_17tc_vq.py;[142- 141- 140];[143];robust_local;10000;6066;60.66
+2026-09-21 13:06:43;Simulacion;pe_5_mqt.py;[115- 114- 113- 112- 111];[110];robust_local;10000;7763;77.63
+2026-09-21 13:06:43;Simulacion;pe_3_mqt.py;[75- 59- 55];[54];robust_local;10000;8684;86.84
+2026-09-21 13:06:43;Simulacion;shor_mod15_mqt.py;[13- 14- 15- 19- 35];[34];robust_local;10000;7021;70.21
+2026-09-21 13:06:47;Simulacion;tsp_indep_4_mqt.py;[142- 143- 144- 145];[141];robust_local;10000;8294;82.94
+2026-09-21 13:06:47;Simulacion;qft_2_mqt.py;[3- 2];[1];robust_local;10000;8268;82.68
+2026-09-21 13:06:47;Simulacion;qaoa_indep_3_mqt.py;[36- 41- 40];[21];robust_local;10000;6559;65.59
+2026-09-21 13:06:47;Simulacion;qwalk-noancilla_3_mqt.py;[101- 116- 121];[102];robust_local;10000;8511;85.11
+2026-09-21 13:06:47;Simulacion;qwalk-v-chain_3_mqt.py;[75- 59- 55];[54];robust_local;10000;7144;71.44
+2026-09-21 13:06:47;Simulacion;grover-noancilla_3_mqt.py;[87- 88- 89];[86];robust_local;10000;5619;56.19
+2026-09-21 13:06:47;Simulacion;shor_mod21_mqt.py;[131- 130- 129- 118- 109- 110- 111- 112];[132];robust_local;10000;6850;68.50
+2026-09-21 13:06:47;Simulacion;shor_mod21_mqt.py;[37- 25- 26- 27- 28- 29- 30- 31];[45];robust_local;10000;8263;82.63
+2026-09-21 13:06:47;Simulacion;bv_2_vq.py;[15- 14];[13];robust_local;10000;8785;87.85
+2026-09-21 13:06:47;Simulacion;qft_2_mqt.py;[154- 155];[153];robust_local;10000;6215;62.15
+2026-09-21 13:06:51;Simulacion;qft_6_mqt.py;[1- 2- 3- 16- 23- 22];[24];robust_local;10000;7778;77.78
+2026-09-21 13:06:51;Simulacion;su2random_3_mqt.py;[143- 142- 141];[144];robust_local;10000;1600;16.00
+2026-09-21 13:06:51;Simulacion;tsp_indep_4_mqt.py;[87- 86- 85- 84];[83];robust_local;10000;4927;49.27
+2026-09-21 13:06:51;Simulacion;pe_6_vq.py;[13- 14- 15- 19- 35- 34- 33];[39];robust_local;10000;8948;89.48
+2026-09-21 13:06:52;Simulacion;su2random_3_mqt.py;[131- 130- 129];[132];robust_local;10000;8122;81.22
+2026-09-21 13:06:52;Simulacion;3_17tc_vq.py;[75- 74- 73];[59];robust_local;10000;8103;81.03
+2026-09-21 13:06:52;Simulacion;bv_2_vq.py;[115- 99];[95];robust_local;10000;9094;90.94
+2026-09-21 13:06:55;Simulacion;qft_6_mqt.py;[1- 2- 3- 16- 23- 22];[24];robust_local;10000;6777;67.77
+2026-09-21 13:06:55;Simulacion;bv_4_vq.py;[142- 143- 144- 145];[141];robust_local;10000;8393;83.93
+2026-09-21 13:06:55;Simulacion;shor_mod15_mqt.py;[87- 86- 85- 84- 83];[88];robust_local;10000;9114;91.14
+2026-09-21 13:06:55;Simulacion;pe_4_mqt.py;[75- 59- 55- 54];[74];robust_local;10000;9382;93.82
+2026-09-21 13:06:55;Simulacion;grover-v-chain_4_mqt.py;[131- 130- 129- 128];[127];robust_local;10000;6503;65.03
+2026-09-21 13:06:55;Simulacion;pe_2_vq.py;[15- 14- 13];[19];robust_local;10000;1433;14.33
+2026-09-21 13:06:55;Simulacion;qft_3_mqt.py;[115- 114- 113];[112];robust_local;10000;9221;92.21
+2026-09-21 13:06:55;Simulacion;pe_3_mqt.py;[154- 155- 139];[135];robust_local;10000;3044;30.44
+2026-09-21 13:06:59;Simulacion;qft_7_vq.py;[36- 21- 22- 23- 16- 3- 2];[1];robust_local;10000;7225;72.25
+2026-09-21 13:06:59;Simulacion;kickback_7_vq.py;[147- 137- 127- 126- 125- 117- 105];[106];robust_local;10000;8304;83.04
+2026-09-21 13:06:59;Simulacion;bv_5_vq.py;[115- 114- 113- 112- 111];[110];robust_local;10000;1362;13.62
+2026-09-21 13:06:59;Simulacion;grover_7_vq.py;[13- 14- 15- 19- 35- 34- 33];[39];robust_local;10000;7203;72.03
+2026-09-21 13:06:59;Simulacion;qwalk-v-chain_5_mqt.py;[83- 84- 85- 77- 65];[86];robust_local;10000;5192;51.92
+2026-09-21 13:06:59;Simulacion;qft_3_vq.py;[142- 141- 140];[143];robust_local;10000;7563;75.63
+2026-09-21 13:06:59;Simulacion;adder_n4_vq.py;[75- 74- 73- 79];[59];robust_local;10000;4247;42.47
+2026-09-21 13:07:04;Simulacion;grover_9_vq.py;[142- 143- 136- 123- 122- 121- 116- 101- 102];[144];robust_local;10000;9127;91.27
+2026-09-21 13:07:04;Simulacion;bv_9_vq.py;[36- 21- 22- 23- 16- 3- 4- 5- 6];[2];robust_local;10000;3236;32.36
+2026-09-21 13:07:04;Simulacion;qaoa_indep_3_mqt.py;[87- 88- 89];[86];robust_local;10000;3415;34.15
+2026-09-21 13:07:04;Simulacion;dj_indep_4_mqt.py;[75- 59- 55- 54];[74];robust_local;10000;8988;89.88
+2026-09-21 13:07:04;Simulacion;pe_6_vq.py;[127- 128- 129- 118- 109- 110- 111];[130];robust_local;10000;3227;32.27
+2026-09-21 13:07:04;Simulacion;qaoa_indep_5_mqt.py;[13- 14- 15- 19- 35];[34];robust_local;10000;1604;16.04
+2026-09-21 13:07:04;Simulacion;grover-noancilla_3_mqt.py;[115- 99- 95];[94];robust_local;10000;6936;69.36
+2026-09-21 13:07:09;Simulacion;qaoa_indep_4_mqt.py;[142- 143- 144- 145];[141];robust_local;10000;8385;83.85
+2026-09-21 13:07:09;Simulacion;pe_5_mqt.py;[1- 2- 3- 16- 23];[24];robust_local;10000;6660;66.60
+2026-09-21 13:07:09;Simulacion;qft_4_mqt.py;[87- 86- 85- 84];[83];robust_local;10000;3729;37.29
+2026-09-21 13:07:09;Simulacion;grover-noancilla_4_mqt.py;[75- 59- 55- 54];[74];robust_local;10000;9055;90.55
+2026-09-21 13:07:09;Simulacion;su2_5_vq.py;[131- 130- 129- 128];[127];robust_local;10000;5327;53.27
+2026-09-21 13:07:09;Simulacion;grover_3_vq.py;[15- 14- 13];[19];robust_local;10000;1389;13.89
+2026-09-21 13:07:09;Simulacion;vqe_indep_3_mqt.py;[115- 114- 113];[112];robust_local;10000;9211;92.11
+2026-09-21 13:07:09;Simulacion;bv_3_vq.py;[154- 155- 139];[135];robust_local;10000;2893;28.93
+2026-09-21 13:07:44;Simulacion;dj_indep_7_mqt.py;[36- 21- 22- 23- 16- 3- 2];[1];robust_local;10000;7422;74.22
+2026-09-21 13:07:44;Simulacion;pe_6_mqt.py;[101- 102- 103- 96- 83- 84];[116];robust_local;10000;8739;87.39
+2026-09-21 13:07:44;Simulacion;adder_n7_vq.py;[147- 137- 127- 128- 129- 130- 131];[132];robust_local;10000;9178;91.78
+2026-09-21 13:07:44;Simulacion;adder_n10_vq.py;[13- 14- 15- 19- 35- 34- 33- 32- 31- 30];[39];robust_local;10000;8981;89.81
+2026-09-21 13:07:44;Simulacion;dj_indep_5_mqt.py;[75- 74- 73- 79- 93];[59];robust_local;10000;8542;85.42
+2026-09-21 13:07:44;Simulacion;grover-v-chain_3_mqt.py;[142- 141- 140];[143];robust_local;10000;4525;45.25
+2026-09-21 13:07:48;Simulacion;vqe_indep_4_mqt.py;[142- 143- 144- 145];[141];robust_local;10000;8928;89.28
+2026-09-21 13:07:48;Simulacion;pe_5_vq.py;[1- 2- 3- 16- 23- 22];[24];robust_local;10000;8395;83.95
+2026-09-21 13:07:48;Simulacion;vqe_indep_5_mqt.py;[87- 86- 85- 84- 83];[88];robust_local;10000;9434;94.34
+2026-09-21 13:07:48;Simulacion;vqe_indep_5_mqt.py;[115- 114- 113- 112- 111];[110];robust_local;10000;8410;84.10
+2026-09-21 13:07:48;Simulacion;adder_n7_vq.py;[13- 14- 15- 19- 35- 34- 33];[39];robust_local;10000;9075;90.75
+2026-09-21 13:07:48;Simulacion;vqe_indep_3_mqt.py;[75- 74- 73];[59];robust_local;10000;8943;89.43
+2026-09-21 13:07:48;Simulacion;dj_indep_5_mqt.py;[131- 138- 151- 152- 153];[130];robust_local;10000;8855;88.55
+2026-09-21 13:07:52;Simulacion;qaoa_indep_4_mqt.py;[142- 143- 144- 145];[141];robust_local;10000;8390;83.90
+2026-09-21 13:07:52;Simulacion;pe_7_mqt.py;[36- 21- 22- 23- 16- 3- 2];[1];robust_local;10000;7313;73.13
+2026-09-21 13:07:52;Simulacion;pe_7_mqt.py;[106- 105- 104- 103- 96- 83- 84];[102];robust_local;10000;7569;75.69
+2026-09-21 13:07:52;Simulacion;adder_n10_vq.py;[13- 14- 15- 19- 35- 34- 33- 32- 31- 30];[39];robust_local;10000;8875;88.75

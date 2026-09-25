@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,29 +31,49 @@ def procesar_distribuciones(dict_indiv, dict_multi):
     
     return prob_indiv, prob_multi
 
+def agrupar_ejecuciones(datos):
+    """Agrupa las ejecuciones por circuito sin perder las repeticiones."""
+    ejecuciones = defaultdict(list)
+    for item in datos:
+        ejecuciones[item['circuit']].append(item['value'])
+    return ejecuciones
+
 def comparar_ejecuciones(ruta_indiv, ruta_multi):
     datos_indiv = cargar_json(ruta_indiv)
     datos_multi = cargar_json(ruta_multi)
-    
-    # Convertir listas a diccionarios indexados por el nombre del circuito
-    mapa_indiv = {item['circuit']: item['value'] for item in datos_indiv}
-    mapa_multi = {item['circuit']: item['value'] for item in datos_multi}
-    
+
+    mapa_indiv = agrupar_ejecuciones(datos_indiv)
+    mapa_multi = agrupar_ejecuciones(datos_multi)
     circuitos_comunes = set(mapa_indiv.keys()).intersection(set(mapa_multi.keys()))
-    
+
     resultados = {}
-    for circ in circuitos_comunes:
-        p_indiv, p_multi = procesar_distribuciones(mapa_indiv[circ], mapa_multi[circ])
-        
-        # Calcular métricas
-        hellinger = calcular_hellinger(p_indiv, p_multi)
-        jsd = jensenshannon(p_indiv, p_multi)
-        
-        resultados[circ] = {
-            'Hellinger': hellinger,
-            'JSD': jsd
-        }
-        
+
+    for circ in sorted(circuitos_comunes):
+        ejecuciones_multi = mapa_multi[circ]
+        ejecuciones_indiv = mapa_indiv[circ]
+
+        # La ejecución individual es la referencia. Se reutiliza cuando el
+        # circuito aparece varias veces en el JSON multiplexado.
+        for indice, distribucion_multi in enumerate(ejecuciones_multi):
+            indice_individual = min(indice, len(ejecuciones_indiv) - 1)
+            p_indiv, p_multi = procesar_distribuciones(
+                ejecuciones_indiv[indice_individual], distribucion_multi
+            )
+
+            resultados[f'{circ} [ejecucion {indice + 1}]'] = {
+                'Hellinger': calcular_hellinger(p_indiv, p_multi),
+                'JSD': jensenshannon(p_indiv, p_multi)
+            }
+
+        total_indiv = len(ejecuciones_indiv)
+        total_multi = len(ejecuciones_multi)
+        if total_indiv < total_multi:
+            print(
+                f'Aviso: {circ} aparece {total_indiv} veces en individuales y '
+                f'{total_multi} veces en multiplexadas; se reutiliza la '
+                f'referencia individual para las {total_multi} comparaciones.'
+            )
+
     return resultados
 
 def graficar_metricas(resultados, ruta_salida_figura=None):
@@ -105,8 +126,11 @@ def graficar_metricas(resultados, ruta_salida_figura=None):
         ax_top.set_visible(False)
 
     ax_bottom.set_ylabel('Divergence Distance (0 to 1)')
-    ax_bottom.set_xticks(x)
-    ax_bottom.set_xticklabels(circuitos, rotation=45, ha="right")
+    if circuitos:
+        posiciones = np.linspace(0, len(circuitos) - 1, 5)
+        ax_bottom.set_xticks(posiciones)
+        ax_bottom.set_xticklabels(['0', '25', '50', '75', '100'])
+    ax_bottom.set_xlabel('Numero de circuito')
 
     handles, labels = ax_bottom.get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.95, 0.9))
@@ -145,7 +169,7 @@ def construir_salida_texto(metricas):
 
 # --- Ejecución ---
 ruta_individual = BASE_DIR / 'Individuales' / 'Fez' / 'EjecucionesIndividuales.json'
-ruta_multiplexada = BASE_DIR / '40Circuitos_3D' / 'ModoDinamicoV2' / 'MedidaFirstIndependiente' / 'dynamic_local_initial_ramsey' / '2' / '2.json'
+ruta_multiplexada = BASE_DIR / '100Circuitos' / 'ModoEstatico' / 'ModoGlobal' / 'completo' / 'completo.json'
 if not ruta_individual.exists():
     raise FileNotFoundError(f'No se encontró el archivo individual: {ruta_individual}')
 if not ruta_multiplexada.exists():
@@ -166,6 +190,7 @@ ruta_txt.write_text(salida_texto, encoding='utf-8')
 
 print(f'Grafica guardada en: {ruta_figura}')
 print(f'Salida de metricas guardada en: {ruta_txt}')
+print(f'Comparaciones realizadas: {len(metricas)}')
 print(f"Media total Hellinger: {media_metricas['Hellinger']:.4f}")
 print(f"Media total JSD:       {media_metricas['JSD']:.4f}")
 
