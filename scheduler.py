@@ -188,6 +188,8 @@ class Scheduler:
         """
         Unschedule a circuit
         """
+
+
         results = divideResults(id_job, counts, shots, provider, qb, users, circuit_names, layout_fisico, modo_inferido)
 
         for dividedResult in results:
@@ -384,15 +386,23 @@ class Scheduler:
         circuit = response.text
 
         # Buevo para QASM
-        if "OPENQASM 3.0" in circuit:
-            # Extraemos el número de qubits usando una regex rápida sobre el QASM
-            match = re.search(r'qubit\[(\d+)\]', circuit)
-            num_qubits = int(match.group(1)) if match else self.max_qubits
+        if "OPENQASM 3.0" in circuit or "OPENQASM 2.0;" in circuit:
+            # === NUEVO: Extraemos TODOS los registros y sumamos sus tamaños ===
+            matches_qasm2 = re.findall(r'qreg\s+\w+\[(\d+)\]', circuit)
+            matches_qasm3 = re.findall(r'qubit\[(\d+)\]', circuit)
+            
+            if matches_qasm2:
+                num_qubits = sum(int(size) for size in matches_qasm2)
+            elif matches_qasm3:
+                num_qubits = sum(int(size) for size in matches_qasm3)
+            else:
+                num_qubits = self.max_qubits
+            # ==================================================================
+                
             maxDepth = len(circuit.split('\n')) # Estimación rápida
 
             provider = requested_provider if requested_provider else 'ibm'      
 
-            # Lo enviamos directamente a la política saltando todo lo demás
             self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
             return str(user), 200
         # ---------------------------------------
@@ -497,6 +507,65 @@ class Scheduler:
         self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy, sentinel_mode)
 
         return str(user), 200
+
+    def extraer_features_ml(self, counts: dict, shots: int, circuit_name: str, layout_fisico: list):
+        """
+        Convierte los counts crudos de IBM en un tensor de 5 dimensiones para el ML.
+        """
+        import json
+        
+        NUM_VENTANAS = 5
+        errores_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+        centinelas_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+        
+        # 1. Identificar cuántos centinelas hay y a qué ventana pertenecen
+        num_centinelas = 0
+        for mapping in layout_fisico:
+            sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+            for idx, _ in enumerate(sents):
+                ventana = (num_centinelas + idx) % NUM_VENTANAS
+                centinelas_por_ventana[ventana] += 1
+            num_centinelas += len(sents)
+            
+        # 2. Contabilizar los errores (unos) en los counts
+        for bitstring, freq in counts.items():
+            # El registro de los centinelas suele estar al principio o final del bitstring
+            # (Dependiendo del endianness de Qiskit. Separamos por espacio si hay varios registros)
+            partes = bitstring.split()
+            registro_centinelas = partes[0] if len(partes) > 1 else bitstring[:num_centinelas]
+            
+            # Los bitstrings en Qiskit se leen de derecha a izquierda (el bit 0 está a la derecha)
+            registro_centinelas = registro_centinelas[::-1] 
+            
+            for bit_idx, bit_val in enumerate(registro_centinelas):
+                if bit_idx < num_centinelas and bit_val == '1':
+                    ventana = bit_idx % NUM_VENTANAS
+                    errores_por_ventana[ventana] += freq
+
+        # 3. Calcular la tasa de error media (probabilidad) por ventana
+        num_shots = shots[0] if isinstance(shots, list) else int(shots)
+
+        tasas_error = []
+        for i in range(NUM_VENTANAS):
+            if centinelas_por_ventana[i] > 0:
+                # Total de mediciones esperadas para esta ventana = shots * num_centinelas_en_esa_ventana
+                mediciones_totales = num_shots * centinelas_por_ventana[i]
+                tasa = errores_por_ventana[i] / mediciones_totales
+            else:
+                tasa = 0.0
+            tasas_error.append(round(tasa, 4))
+            
+        # 4. Guardar en el dataset
+        registro = {
+            "circuito": circuit_name,
+            "tasas_error_v0_v4": tasas_error,
+            "layout": layout_fisico
+        }
+        
+        with open("dataset_crosstalk_ml.json", "a") as f:
+            f.write(json.dumps(registro) + "\n")
+            
+        print(f"📊 Datos ML extraídos para {circuit_name}: {tasas_error}")
 
     
     def sendResults(self) -> tuple:

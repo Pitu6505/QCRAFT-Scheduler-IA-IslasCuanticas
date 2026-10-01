@@ -384,8 +384,26 @@ class SchedulerPolicies:
                 for m in layout_fisico:
                     modo = m.get('mode', 'standard')
                     for _ in (m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]): 
-                        if modo in ['standard', 'robust', 'completo', 'dd']: new_qc.h(q_sentinel[idx])
-                        elif modo == 't1_decay': new_qc.x(q_sentinel[idx])
+                        if modo == 'crosstalk_perimetro':
+                            new_qc.h(q_sentinel[idx])
+                            NUM_VENTANAS = 5
+                            
+                            # SOLUCIÓN: Calculamos la profundidad localmente leyendo el objeto Qiskit
+                            profundidad_victima = qc_original.depth()
+                            
+                            duracion_total_estimada = profundidad_victima * 300 
+                            ventana_tiempo = duracion_total_estimada / NUM_VENTANAS
+                            ventana_asignada = idx % NUM_VENTANAS
+                            retardo = int(ventana_asignada * ventana_tiempo)
+                            
+                            if retardo > 0:
+                                new_qc.delay(retardo, q_sentinel[idx], unit='ns')
+                                
+                        elif modo in ['standard', 'robust', 'completo', 'dd']: 
+                            new_qc.h(q_sentinel[idx])
+                        elif modo == 't1_decay': 
+                            new_qc.x(q_sentinel[idx])
+                        
                         idx += 1
                 
                 new_qc.barrier()
@@ -403,7 +421,8 @@ class SchedulerPolicies:
                             new_qc.y(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
                         elif modo in ['robust', 'completo']:
                             new_qc.x(q_sentinel[idx]); new_qc.h(q_sentinel[idx])
-                        elif modo == 't1_decay': new_qc.x(q_sentinel[idx]) 
+                        elif modo == 't1_decay': new_qc.x(q_sentinel[idx])
+                        elif modo == 'crosstalk_perimetro': new_qc.h(q_sentinel[idx]) 
                         else: new_qc.h(q_sentinel[idx])
                         new_qc.measure(q_sentinel[idx], c_flag[idx])
                         idx += 1
@@ -599,7 +618,7 @@ class SchedulerPolicies:
                 if layout_fisico_plano is not None:
                     counts = self.executeCircuitIBM.runIBM_save(
                         machine, loc['circuit'], max(shots), [url[3] for url in urls],
-                        qb, [url[4] for url in urls], layout_fisico_plano 
+                        qb, [url[4] for url in urls], layout_fisico_estructurado # <--- CAMBIO AQUÍ
                     )
                 else:
                     counts = self.executeCircuitIBM.runIBM_save(
@@ -708,6 +727,7 @@ class SchedulerPolicies:
     def create_circuit(self, urls: list, code: list, qb: list, provider: str) -> None:
         composition_qubits = 0
         es_qasm3 = False 
+        es_qasm2 = False
         
         for entry in urls:
             if len(entry) == 8:
@@ -724,6 +744,13 @@ class SchedulerPolicies:
             
             if "OPENQASM 3.0" in url:
                 es_qasm3 = True
+                code.append(url) 
+                composition_qubits += int(num_qubits)
+                qb.append(int(num_qubits))
+                continue
+
+            elif "OPENQASM 2.0" in url:
+                es_qasm2 = True
                 code.append(url) 
                 composition_qubits += int(num_qubits)
                 qb.append(int(num_qubits))
@@ -750,7 +777,7 @@ class SchedulerPolicies:
             qb.append(int(num_qubits))
 
         # === SOLUCIÓN: Insertamos la cabecera del motor universal (Qiskit) SIEMPRE ===
-        if not es_qasm3:  
+        if not es_qasm3 and not es_qasm2:  
             code.insert(0,"circuit = QuantumCircuit(qreg_q, creg_c)")
             code.insert(0, f"creg_c = ClassicalRegister({composition_qubits}, 'c')")  
             code.insert(0, f"qreg_q = QuantumRegister({composition_qubits}, 'q')")  

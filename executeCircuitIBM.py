@@ -71,6 +71,14 @@ class executeCircuitIBM:
             except Exception as e:
                 print(f"❌ Error al cargar OpenQASM 3.0: {e}")
                 raise ValueError(f"Invalid QASM3 code: {e}")
+        elif "OPENQASM 2.0;" in code_str:
+            try:
+                circuit = qiskit.QuantumCircuit.from_qasm_str(code_str)
+                print("✅ Circuito cargado correctamente desde OpenQASM 2.0")
+                return circuit
+            except Exception as e:
+                print(f"❌ Error al cargar OpenQASM 2.0: {e}")
+                raise ValueError(f"Invalid QASM2 code: {e}")
                 
         # 2. Si es un script de Python concatenado (Descargado de GitHub)
         else:
@@ -232,10 +240,11 @@ class executeCircuitIBM:
             
             with self.transpile_lock:
                 if layout_fisico is not None:
-                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
+                    # === NUEVO: Aplanamos el diccionario solo para que Qiskit pueda transpilarlo ===
+                    flat_layout = self._flatten_layout(layout_fisico)
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=flat_layout)
                 else:
                     qc_basis = transpile(circuit, backend=backend, optimization_level=0)
-
             while True:
                 with self.condition:   
                     if self.queued_jobs < 3:
@@ -271,6 +280,56 @@ class executeCircuitIBM:
         
         creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
         bitstrings_por_registro = {name: getattr(data_bin, name).get_bitstrings() for name in creg_names}
+        
+        # === NUEVO: Extracción de datos para ML en origen (Antes del filtrado) ===
+       # === NUEVO: Extracción de datos para ML en origen (Antes del filtrado) ===
+        # 1. Buscamos dinámicamente cuál es el nombre real del registro de los centinelas
+        clave_c_flag = next((k for k in bitstrings_por_registro.keys() if k.startswith('c_flag')), None)
+        
+        # 2. Imprimimos el estado exacto de las variables para depurar si hace falta
+        print(f"🔎 DEBUG ML -> modo_inferido: '{modo_inferido}', clave encontrada: '{clave_c_flag}'")
+        
+        if modo_inferido == 'crosstalk_perimetro' and clave_c_flag is not None:
+            NUM_VENTANAS = 5
+            errores_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+            centinelas_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+            
+            # Mapear qué centinela pertenece a qué ventana
+            num_centinelas = 0
+            for mapping in layout_fisico:
+                sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                for idx, _ in enumerate(sents):
+                    ventana = (num_centinelas + idx) % NUM_VENTANAS
+                    centinelas_por_ventana[ventana] += 1
+                num_centinelas += len(sents)
+                
+            # Contar errores usando la clave dinámica que hemos encontrado
+            lista_c_flags = bitstrings_por_registro[clave_c_flag]
+            for shot_c_flag in lista_c_flags:
+                shot_reverso = shot_c_flag[::-1] # Qiskit lee de derecha a izquierda
+                for bit_idx, bit_val in enumerate(shot_reverso):
+                    if bit_val == '1' and bit_idx < num_centinelas:
+                        ventana = bit_idx % NUM_VENTANAS
+                        errores_por_ventana[ventana] += 1
+                        
+            # Calcular la tasa de error por ventana
+            tasas_error = []
+            for i in range(NUM_VENTANAS):
+                mediciones = x * centinelas_por_ventana[i] # x es max(shots)
+                tasa = errores_por_ventana[i] / mediciones if mediciones > 0 else 0.0
+                tasas_error.append(round(tasa, 4))
+                
+            # Guardar en el JSON
+            registro = {
+                "circuito": circuit_names[0],
+                "tasas_error_v0_v4": tasas_error,
+                "layout": layout_fisico
+            }
+            with open("dataset_crosstalk_ml.json", "a") as f:
+                f.write(json.dumps(registro) + "\n")
+            print(f"📊 Datos ML extraídos para {circuit_names[0]}: {tasas_error}")
+        # =========================================================================
+
         counts_combinados = {}
         
         if creg_names:

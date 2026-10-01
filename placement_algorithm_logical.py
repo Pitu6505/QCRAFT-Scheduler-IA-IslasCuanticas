@@ -85,19 +85,23 @@ def bfs_connected_groups(G, start, size, used_nodes, noise_threshold=None, max_s
     return groups
 
 def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sentinel_mode):
-    """Busca el mejor grupo para la isla y los centinelas adyacentes."""
+    """Busca el mejor grupo para la isla maximizando los centinelas adyacentes."""
     best_group = None
     best_centinelas = None
     best_noise = float('inf')
+    best_num_centinelas = -1  # Nueva variable para forzar la máxima cantidad de centinelas
 
     sorted_nodes = sorted(
         [n for n in G.nodes if n not in used_nodes and G.nodes[n]['noise'] <= noise_threshold],
         key=lambda n: G.nodes[n]['noise']
     )
     
-    max_nodes_to_explore = min(10, len(sorted_nodes))
+    # Aumentamos un poco la exploración para tener más opciones de topología
+    max_nodes_to_explore = min(35, len(sorted_nodes)) 
+    
     for node in sorted_nodes[:max_nodes_to_explore]:
-        candidate_groups = bfs_connected_groups(G, node, size, used_nodes, noise_threshold, max_solutions=2)
+        # Ampliamos max_solutions para generar más formas geométricas del mismo circuito
+        candidate_groups = bfs_connected_groups(G, node, size, used_nodes, noise_threshold, max_solutions=15)
         
         for group in candidate_groups:
             candidatos_centinela = []
@@ -105,22 +109,38 @@ def find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sent
                 for vecino in G.neighbors(isla_node):
                     if vecino not in used_nodes and vecino not in group:
                         if G.nodes[vecino]['noise'] <= noise_threshold:
-                            if vecino not in candidatos_centinela: # Evitar duplicados
+                            if vecino not in candidatos_centinela: 
                                 candidatos_centinela.append(vecino)
             
             if candidatos_centinela:
-                if "completo" in sentinel_mode:  # 🔑 CAMBIAMOS EL '==' POR 'in'                    # MODO JAULA: Cogemos todo el perímetro protector
+                if "crosstalk_perimetro" in sentinel_mode:
+                    # Exigimos un tamaño exacto del anillo según el tamaño del circuito
+                    target_sentinels = 5 if size <= 5 else 8
+                    
+                    # FILTRO CRÍTICO: Si en este rincón del chip no caben suficientes centinelas, descartamos el placement
+                    if len(candidatos_centinela) < target_sentinels:
+                        continue 
+                        
+                    # Si hay suficientes o sobran, ordenamos y nos quedamos con los más silenciosos
+                    candidatos_ordenados = sorted(candidatos_centinela, key=lambda n: G.nodes[n]['noise'])
+                    centinelas = candidatos_ordenados[:target_sentinels]
+                
+                elif "completo" in sentinel_mode:
                     centinelas = candidatos_centinela
                 else:
-                    # MODO NORMAL: Cogemos solo el más silencioso
                     mejor_centinela = min(candidatos_centinela, key=lambda n: G.nodes[n]['noise'])
                     centinelas = [mejor_centinela]
 
                 all_nodes = group + centinelas
                 if is_far_enough(G, all_nodes, used_nodes):
-                    # El ruido de la estructura es la suma de los datos y de todos los centinelas
+                    num_centinelas = len(centinelas)
                     total_noise = sum(G.nodes[n]['noise'] for n in group) + sum(G.nodes[n]['noise'] for n in centinelas)
-                    if total_noise < best_noise:
+                    
+                    # LÓGICA DE PRIORIDAD:
+                    # 1º Maximizar cantidad de centinelas garantizados.
+                    # 2º A igualdad de centinelas, minimizar el ruido total.
+                    if (num_centinelas > best_num_centinelas) or (num_centinelas == best_num_centinelas and total_noise < best_noise):
+                        best_num_centinelas = num_centinelas
                         best_noise = total_noise
                         best_group = group
                         best_centinelas = centinelas
