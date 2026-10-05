@@ -196,13 +196,42 @@ class SchedulerPolicies:
 
         loc = {}
         
-        # =====================================================================
-        # 1. PARSEO INICIAL Y EXTRACCIÓN DE MEDIDAS (Evita "already measured")
+# =====================================================================
+        # 1. PARSEO INICIAL Y EXTRACCIÓN DE MEDIDAS (Soporte Multiplexado)
         # =====================================================================
         try:
-            qc_original = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
+            from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
             
-            # Extraemos las medidas para ponerlas TODAS al final del circuito
+            code_list = json.loads(data)['code']
+            es_qasm = any("OPENQASM" in d for d in code_list)
+            qc_original = QuantumCircuit()
+            
+            if es_qasm:
+                # Ensamblamos los QASM en paralelo de forma lineal
+                for d in code_list:
+                    temp_qc = self.executeCircuitIBM.code_to_circuit_ibm(d)
+                    
+                    q_offset = qc_original.num_qubits
+                    c_offset = qc_original.num_clbits
+                    
+                    # Añadimos los registros necesarios al circuito maestro
+                    new_q = QuantumRegister(temp_qc.num_qubits)
+                    new_c = ClassicalRegister(temp_qc.num_clbits)
+                    qc_original.add_register(new_q, new_c)
+                    
+                    # Componemos desplazando lógicamente los qubits
+                    qc_original.compose(
+                        temp_qc, 
+                        qubits=range(q_offset, q_offset + temp_qc.num_qubits), 
+                        clbits=range(c_offset, c_offset + temp_qc.num_clbits), 
+                        inplace=True
+                    )
+            else:
+                # Soporte antiguo para scripts Python concatenados
+                circuit_str = '\n'.join(code_list)
+                qc_original = self.executeCircuitIBM.code_to_circuit_ibm(circuit_str)
+                
+            # Extraemos las medidas para ponerlas TODAS al final del circuito maestro
             medidas_originales = []
             datos_sin_medidas = []
             for inst in qc_original.data:
@@ -211,13 +240,7 @@ class SchedulerPolicies:
                 else:
                     datos_sin_medidas.append(inst)
             qc_original.data = datos_sin_medidas
-            
-            if provider == 'aws':
-                from qiskit import transpile
-                # Forzamos a Qiskit a traducir todo a puertas que Rigetti entienda
-                safe_basis = ['cx', 'h', 'x', 'y', 'z', 'rx', 'ry', 'rz', 's', 't', 'sdg', 'tdg', 'barrier', 'delay']
-                qc_original = transpile(qc_original, basis_gates=safe_basis, optimization_level=1)
-                
+
             is_qiskit_parsed = True
         except Exception as e:
             print(f"Aviso: No se pudo parsear como Qiskit ({e})")

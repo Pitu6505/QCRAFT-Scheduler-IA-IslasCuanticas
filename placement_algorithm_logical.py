@@ -256,7 +256,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
                             [n for n in G.nodes if n not in used_nodes and G.nodes[n]['noise'] <= noise_threshold],
                             key=lambda n: G.nodes[n]['noise']
                         )
-                        max_nodes_to_explore = min(5, len(sorted_nodes))
+                        max_nodes_to_explore = min(10, len(sorted_nodes))
                         
                         for node in sorted_nodes[:max_nodes_to_explore]:
                             candidate_groups = bfs_connected_groups(G, node, comp_size, used_nodes, noise_threshold, max_solutions=2)
@@ -289,7 +289,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
             [n for n in G.nodes if n not in used_nodes and G.nodes[n]['noise'] <= noise_threshold],
             key=lambda n: G.nodes[n]['noise']
         )
-        max_nodes_to_explore = min(10, len(sorted_nodes))
+        max_nodes_to_explore = min(30, len(sorted_nodes))
         
         for node in sorted_nodes[:max_nodes_to_explore]:
             candidate_groups = bfs_connected_groups(G, node, size, used_nodes, noise_threshold, max_solutions=2)

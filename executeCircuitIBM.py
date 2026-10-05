@@ -18,6 +18,7 @@ import qiskit
 import numpy as np
 import re
 import threading
+import config
 
 
 class executeCircuitIBM:
@@ -120,28 +121,30 @@ class executeCircuitIBM:
         return qc_basis.depth()
 
     def _flatten_layout(self, layout_fisico):
-        """Convierte un layout de islas a una lista plana de qubits físicos."""
+        """Convierte un layout de islas a una lista plana manteniendo el orden lógico: [Todos los Datos] + [Todos los Centinelas]."""
         if layout_fisico is None:
             return None
 
-        flat_layout = []
+        datos_planos = []
+        centinelas_planos = []
+        
         for item in layout_fisico:
             if isinstance(item, dict):
                 if 'data' in item:
-                    flat_layout.extend(item['data'])
+                    datos_planos.extend(item['data'])
                 if 'sentinel' in item:
                     sentinels = item['sentinel']
                     if isinstance(sentinels, list):
-                        flat_layout.extend(sentinels)
+                        centinelas_planos.extend(sentinels)
                     else:
-                        flat_layout.append(sentinels)
+                        centinelas_planos.append(sentinels)
             elif isinstance(item, (list, tuple)):
-                flat_layout.extend(item)
+                datos_planos.extend(item)
             else:
-                flat_layout.append(item)
+                datos_planos.append(item)
 
-        return flat_layout
-
+        # Retornamos los arrays concatenados en el orden exacto de los registros de Qiskit
+        return datos_planos + centinelas_planos
     # Ejecutar el circuito
     def runIBM(self, machine:str, circuit:QuantumCircuit, shots:int) -> dict:
         """
@@ -283,51 +286,60 @@ class executeCircuitIBM:
         
         # === NUEVO: Extracción de datos para ML en origen (Antes del filtrado) ===
        # === NUEVO: Extracción de datos para ML en origen (Antes del filtrado) ===
-        # 1. Buscamos dinámicamente cuál es el nombre real del registro de los centinelas
+        # === NUEVO: Extracción de datos para ML en origen (Modo Enjambre) ===
         clave_c_flag = next((k for k in bitstrings_por_registro.keys() if k.startswith('c_flag')), None)
         
-        # 2. Imprimimos el estado exacto de las variables para depurar si hace falta
-        print(f"🔎 DEBUG ML -> modo_inferido: '{modo_inferido}', clave encontrada: '{clave_c_flag}'")
-        
         if modo_inferido == 'crosstalk_perimetro' and clave_c_flag is not None:
-            NUM_VENTANAS = 5
-            errores_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
-            centinelas_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
-            
-            # Mapear qué centinela pertenece a qué ventana
-            num_centinelas = 0
-            for mapping in layout_fisico:
-                sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
-                for idx, _ in enumerate(sents):
-                    ventana = (num_centinelas + idx) % NUM_VENTANAS
-                    centinelas_por_ventana[ventana] += 1
-                num_centinelas += len(sents)
-                
-            # Contar errores usando la clave dinámica que hemos encontrado
             lista_c_flags = bitstrings_por_registro[clave_c_flag]
-            for shot_c_flag in lista_c_flags:
-                shot_reverso = shot_c_flag[::-1] # Qiskit lee de derecha a izquierda
-                for bit_idx, bit_val in enumerate(shot_reverso):
-                    if bit_val == '1' and bit_idx < num_centinelas:
-                        ventana = bit_idx % NUM_VENTANAS
-                        errores_por_ventana[ventana] += 1
-                        
-            # Calcular la tasa de error por ventana
-            tasas_error = []
-            for i in range(NUM_VENTANAS):
-                mediciones = x * centinelas_por_ventana[i] # x es max(shots)
-                tasa = errores_por_ventana[i] / mediciones if mediciones > 0 else 0.0
-                tasas_error.append(round(tasa, 4))
+            NUM_VENTANAS = 5
+            
+            # El offset global nos permite saber dónde empiezan los centinelas de cada circuito
+            global_sentinel_idx = 0
+            
+            for idx_circuito, mapping in enumerate(layout_fisico):
+                sents = mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]
+                num_sents_isla = len(sents)
+                circ_name = circuit_names[idx_circuito]
                 
-            # Guardar en el JSON
-            registro = {
-                "circuito": circuit_names[0],
-                "tasas_error_v0_v4": tasas_error,
-                "layout": layout_fisico
-            }
-            with open("dataset_crosstalk_ml.json", "a") as f:
-                f.write(json.dumps(registro) + "\n")
-            print(f"📊 Datos ML extraídos para {circuit_names[0]}: {tasas_error}")
+                errores_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+                centinelas_por_ventana = {i: 0 for i in range(NUM_VENTANAS)}
+                
+                # Mapear ventanas usando el índice global exacto que usó el ensamblador
+                for s_idx in range(num_sents_isla):
+                    ventana = (global_sentinel_idx + s_idx) % NUM_VENTANAS
+                    centinelas_por_ventana[ventana] += 1
+                    
+                # Contar errores aislando los bits de esta víctima específica
+                for shot_c_flag in lista_c_flags:
+                    shot_reverso = shot_c_flag[::-1]
+                    bits_isla = shot_reverso[global_sentinel_idx : global_sentinel_idx + num_sents_isla]
+                    
+                    for bit_idx, bit_val in enumerate(bits_isla):
+                        if bit_val == '1':
+                            # Recrear la misma lógica de ventana que se usó al inyectar el delay
+                            ventana = (global_sentinel_idx + bit_idx) % NUM_VENTANAS
+                            errores_por_ventana[ventana] += 1
+                            
+                tasas_error = []
+                for i in range(NUM_VENTANAS):
+                    mediciones = x * centinelas_por_ventana[i]
+                    tasa = errores_por_ventana[i] / mediciones if mediciones > 0 else 0.0
+                    tasas_error.append(round(tasa, 4))
+                    
+                # Guardar el registro independientemente
+                registro = {
+                    "circuito": circ_name,
+                    "tasas_error_v0_v4": tasas_error,
+                    "layout": mapping,
+                    "distancia_saltos": config.MIN_CIRCUIT_DISTANCE
+                }
+                with open("dataset_crosstalk_ml.json", "a") as f:
+                    f.write(json.dumps(registro) + "\n")
+                print(f"📊 ML Extraído [{circ_name}]: {tasas_error}")
+                
+                # Avanzamos el offset para el siguiente circuito en el layout
+                global_sentinel_idx += num_sents_isla
+        # ============================================
         # =========================================================================
 
         counts_combinados = {}
