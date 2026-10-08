@@ -241,6 +241,8 @@ class SchedulerPolicies:
                     datos_sin_medidas.append(inst)
             qc_original.data = datos_sin_medidas
 
+            qc_original.barrier()
+
             is_qiskit_parsed = True
         except Exception as e:
             print(f"Aviso: No se pudo parsear como Qiskit ({e})")

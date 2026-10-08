@@ -245,9 +245,9 @@ class executeCircuitIBM:
                 if layout_fisico is not None:
                     # === NUEVO: Aplanamos el diccionario solo para que Qiskit pueda transpilarlo ===
                     flat_layout = self._flatten_layout(layout_fisico)
-                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=flat_layout)
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=flat_layout, scheduling_method='alap')
                 else:
-                    qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, scheduling_method='alap')
             while True:
                 with self.condition:   
                     if self.queued_jobs < 3:
@@ -331,7 +331,8 @@ class executeCircuitIBM:
                     "circuito": circ_name,
                     "tasas_error_v0_v4": tasas_error,
                     "layout": mapping,
-                    "distancia_saltos": config.MIN_CIRCUIT_DISTANCE
+                    "layout_global_batch": layout_fisico,  
+                    "total_circuitos_concurrentes": len(layout_fisico)
                 }
                 with open("dataset_crosstalk_ml.json", "a") as f:
                     f.write(json.dumps(registro) + "\n")

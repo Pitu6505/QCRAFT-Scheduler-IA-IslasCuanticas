@@ -2,8 +2,10 @@ import json
 import networkx as nx
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import classification_report
 import joblib
 
@@ -15,7 +17,7 @@ G = nx.grid_2d_graph(13, 12)
 G = nx.convert_node_labels_to_integers(G)
 
 # Configuración del entrenamiento.
-USAR_DATOS_SINTETICOS = False
+USAR_DATOS_SINTETICOS = True
 MULTIPLICADOR_SINTETICO = 8
 RUIDO_SINTETICO_STD = 0.015
 
@@ -74,35 +76,62 @@ def aumentar_datos_sinteticos(X, y_ataque, y_algo, multiplicador=8, ruido_std=0.
     return pd.DataFrame(X_aug, columns=X.columns), pd.Series(y_atq_aug), pd.Series(y_alg_aug)
 
 # ==========================================
-# 3. PARSEO DEL DATASET
+# 3. PARSEO DE LOS DATASETS
 # ==========================================
-print("📥 Cargando dataset JSON...")
+def cargar_dataset(ruta_dataset, nombre_origen):
+    datos_procesados = []
+
+    with ruta_dataset.open(encoding='utf-8') as f:
+        for line in f:
+            registro = json.loads(line)
+            if 'layout_global_batch' not in registro:
+                continue
+
+            vector = registro['tasas_error_v0_v4']
+            distancia = calcular_distancia_minima(
+                registro['layout'],
+                registro['layout_global_batch'],
+                G,
+            )
+
+            es_ataque = 1 if distancia < 5 else 0
+            nombre_crudo = registro['circuito'].split('_')[0]
+            algoritmo = nombre_crudo.replace('-noancilla', '')
+
+            datos_procesados.append({
+                'algoritmo': algoritmo,
+                'v0': vector[0],
+                'v1': vector[1],
+                'v2': vector[2],
+                'v3': vector[3],
+                'v4': vector[4],
+                'distancia': distancia,
+                'label_ataque': es_ataque,
+                'origen_dataset': nombre_origen,
+            })
+
+    return datos_procesados
+
+
+print("📥 Cargando datasets JSON...")
+directorio_proyecto = Path(__file__).resolve().parents[2]
 datos_procesados = []
 
-with open('dataset_crosstalk_ml.json', 'r') as f:
-    for line in f:
-        registro = json.loads(line)
-        if 'layout_global_batch' not in registro:
-            continue
-            
-        vector = registro['tasas_error_v0_v4']
-        distancia = calcular_distancia_minima(registro['layout'], registro['layout_global_batch'], G)
-        
-        es_ataque = 1 if distancia < 5 else 0
-        
-        # Extraemos el nombre base (ej. "grover", "vqe") limpiando el string original
-        nombre_crudo = registro['circuito'].split('_')[0]
-        algoritmo = nombre_crudo.replace('-noancilla', '') 
-        
-        datos_procesados.append({
-            'algoritmo': algoritmo,
-            'v0': vector[0], 'v1': vector[1], 'v2': vector[2], 'v3': vector[3], 'v4': vector[4],
-            'distancia': distancia,
-            'label_ataque': es_ataque
-        })
+datasets = [
+    ('dataset_crosstalk_ml.json', 'crosstalk'),
+    ('EjecucionesTopologicamenteDiferente.json', 'topologia'),
+]
+
+for nombre_dataset, nombre_origen in datasets:
+    ruta_dataset = directorio_proyecto / nombre_dataset
+    datos_procesados.extend(cargar_dataset(ruta_dataset, nombre_origen))
 
 df = pd.DataFrame(datos_procesados)
 print(f"✅ Muestras originales cargadas: {len(df)}")
+print("📊 Muestras por dataset:")
+print(df['origen_dataset'].value_counts().to_string())
+print("📊 Muestras por algoritmo:")
+print(df['algoritmo'].value_counts().to_string())
 
 # ==========================================
 # 4. PREPARACIÓN DE ENTRENAMIENTO (SPLIT)
@@ -146,7 +175,13 @@ print(classification_report(y_test_atq, pred_ataque, target_names=["Normal (0)",
 # 6. MODELO 2: CLASIFICADOR FORENSE (MULTICLASE)F
 # ==========================================
 print("\n🔎 Entrenando Modelo 2: Identificador Forense de Algoritmos...")
-clf_algoritmo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+clf_algoritmo = ExtraTreesClassifier(
+    n_estimators=300,
+    max_depth=8,
+    class_weight="balanced",
+    random_state=42,
+    n_jobs=-1,
+)
 clf_algoritmo.fit(X_train_model, y_train_alg_model)
 
 pred_algoritmo = clf_algoritmo.predict(X_test)
@@ -170,11 +205,11 @@ for i in range(5): # Probamos con 5 vectores aleatorios del set de pruebas
     firma_limpia = clf_algoritmo.predict(vector_df)[0]    
     if es_ataque_pred == 1:
         # Fase 2: Si es un ataque, llamamos al modelo forense para saber qué lo causó
-        causante = clf_algoritmo.predict([vector_prueba])[0]
+        causante = clf_algoritmo.predict(vector_df)[0]
         estado = f"🚨 ALERTA: Interferencia detectada. Causante más probable: [{causante.upper()}]"
     else:
         # Si es normal, predecimos de quién es la firma limpia
-        firma_limpia = clf_algoritmo.predict([vector_prueba])[0]
+        firma_limpia = clf_algoritmo.predict(vector_df)[0]
         estado = f"✅ Ejecución limpia. Firma validada: [{firma_limpia.upper()}]"
         
     print(f"Vector: {[round(v, 3) for v in vector_prueba]}")
