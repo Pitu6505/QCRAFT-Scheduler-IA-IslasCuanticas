@@ -17,7 +17,7 @@ G = nx.grid_2d_graph(13, 12)
 G = nx.convert_node_labels_to_integers(G)
 
 # Configuración del entrenamiento.
-USAR_DATOS_SINTETICOS = True
+USAR_DATOS_SINTETICOS = False  # Cambia a True si deseas aumentar los datos con ruido térmico NISQ
 MULTIPLICADOR_SINTETICO = 8
 RUIDO_SINTETICO_STD = 0.015
 
