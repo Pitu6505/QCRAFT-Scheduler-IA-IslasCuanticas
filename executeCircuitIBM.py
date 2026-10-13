@@ -121,10 +121,30 @@ class executeCircuitIBM:
         return qc_basis.depth()
 
     def _flatten_layout(self, layout_fisico):
-        """Convierte un layout de islas a una lista plana manteniendo el orden lógico: [Todos los Datos] + [Todos los Centinelas]."""
+        """Convierte un layout a una lista plana. Si es un ataque radar, respeta el orden secuencial absoluto."""
         if layout_fisico is None:
             return None
 
+        # 1. Detectar si estamos en el modo de ataque a ciegas
+        es_ataque_radar = any(isinstance(item, dict) and item.get('mode') == 'radar_distribuido' for item in layout_fisico)
+
+        if es_ataque_radar:
+            # En el ataque, el espía es un circuito QASM normal, así que aplanamos secuencialmente
+            plano = []
+            for item in layout_fisico:
+                if isinstance(item, dict):
+                    if 'data' in item: 
+                        plano.extend(item['data'])
+                    if 'sentinel' in item:
+                        sents = item['sentinel']
+                        plano.extend(sents if isinstance(sents, list) else [sents])
+                elif isinstance(item, (list, tuple)):
+                    plano.extend(item)
+                else:
+                    plano.append(item)
+            return plano
+
+        # 2. MODO FTQC ORIGINAL (Separando Datos y Centinelas)
         datos_planos = []
         centinelas_planos = []
         
@@ -143,7 +163,6 @@ class executeCircuitIBM:
             else:
                 datos_planos.append(item)
 
-        # Retornamos los arrays concatenados en el orden exacto de los registros de Qiskit
         return datos_planos + centinelas_planos
     # Ejecutar el circuito
     def runIBM(self, machine:str, circuit:QuantumCircuit, shots:int) -> dict:
@@ -166,6 +185,7 @@ class executeCircuitIBM:
             result = job.result()
             counts = result.get_counts()
             return counts
+        
         else:
             # Load your IBM Quantum account
 
@@ -234,6 +254,27 @@ class executeCircuitIBM:
             backend = AerSimulator()
             sampler = BackendSamplerV2(backend=backend)
             job = sampler.run([circuit], shots=x)
+
+        elif machine == "simulador_fez":
+            from qiskit_aer import AerSimulator
+            from qiskit.primitives import BackendSamplerV2
+            
+            # Descargamos las propiedades reales de la máquina para imitarla
+            service = self.service
+            real_backend = service.backend("ibm_fez")
+            sim_backend = AerSimulator.from_backend(real_backend)
+            
+            with self.transpile_lock:
+                if layout_fisico is not None:
+                    flat_layout = self._flatten_layout(layout_fisico)
+                    qc_basis = transpile(circuit, backend=sim_backend, optimization_level=0, initial_layout=flat_layout, scheduling_method='alap')
+                else:
+                    qc_basis = transpile(circuit, backend=sim_backend, optimization_level=0, scheduling_method='alap')
+            
+            sampler = BackendSamplerV2(backend=sim_backend)
+            job = sampler.run([qc_basis], shots=x)
+            print("✅ Simulación topológica ibm_fez completada con éxito.")
+        # =========================================
             
         else:
             # Load your IBM Quantum account
@@ -340,6 +381,39 @@ class executeCircuitIBM:
                 
                 # Avanzamos el offset para el siguiente circuito en el layout
                 global_sentinel_idx += num_sents_isla
+
+        elif modo_inferido == 'radar_distribuido' and clave_c_flag is not None:
+            lista_c_flags = bitstrings_por_registro[clave_c_flag]
+            
+            # Vector de 25 posiciones (N0..N4, OE0..OE4, E0..E4, C0..C4, S0..S4)
+            errores_por_bit = {i: 0 for i in range(25)}
+            tasas_error_radar = [0.0] * 25 
+            
+            # Contabilizamos los unos
+            for shot_c_flag in lista_c_flags:
+                shot_reverso = shot_c_flag[::-1]
+                bits_espia = shot_reverso[:25] 
+                
+                for bit_idx, bit_val in enumerate(bits_espia):
+                    if bit_val == '1':
+                        errores_por_bit[bit_idx] += 1
+                        
+            # Calculamos las tasas
+            for i in range(25):
+                tasas_error_radar[i] = round(errores_por_bit[i] / x, 4) if x > 0 else 0.0
+                
+            # Guardamos la muestra
+            registro = {
+                "circuito": "Ataque_Espia",
+                "victimas": circuit_names[1:], # Guardamos qué circuitos acompañaban al espía
+                "vector_25d": tasas_error_radar,
+                "layout_global_batch": layout_fisico,  
+                "total_circuitos_concurrentes": len(layout_fisico)
+            }
+            
+            with open("dataset_radar_distribuido.json", "a") as f:
+                f.write(json.dumps(registro) + "\n")
+            print(f"📡 Radar 25D Extraído contra {circuit_names[1:]}")
         # ============================================
         # =========================================================================
 

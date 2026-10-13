@@ -157,6 +157,12 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
     used_nodes = set()
     start_time = time.time()
     
+    # === NUEVO: BLOQUEO INICIAL DEL RADAR ===
+    if sentinel_mode == 'radar_distribuido':
+        radar_nodes = [5, 6, 7, 8, 9, 40, 41, 42, 43, 44, 71, 72, 73, 74, 75, 85, 86, 87, 88, 89, 146, 147, 148, 149, 150]
+        used_nodes.update(radar_nodes)
+    # ========================================
+
     dynamic_threshold = calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util)
     noise_threshold = dynamic_threshold
     print(f" Usando umbral de ruido: {noise_threshold:.4f}")
@@ -182,26 +188,40 @@ def place_circuits_logical(G, circuits, max_time_seconds=30, sentinel_mode=None)
         # RAMA 1: ASIGNACIÓN CON PROTECCIÓN (ISLA + CENTINELAS)
         # =====================================================================
         if sentinel_mode:
-            # === AQUÍ ESTABA EL ERROR: Ahora le pasamos sentinel_mode y recibimos una lista de centinelas ===
-            isla_data, centinelas = find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sentinel_mode)
-            
-            if isla_data and centinelas:
-                all_nodes = isla_data + centinelas # Ambos son listas, así que se suman directamente
-                used_nodes.update(all_nodes)
-                
-                mapeo_estructurado = {
-                    'data': isla_data,
-                    'sentinel': centinelas,
-                    'mode': sentinel_mode
-                }
-                placed.append((circuit['id'], mapeo_estructurado))
-                print(f"  [+] Isla {circuit['id']} mapeada: Datos={isla_data}, Centinelas={centinelas}")
+            if sentinel_mode == 'radar_distribuido':
+                # Identificamos al espía de forma inequívoca por su tamaño
+                if size == 25:
+                    mapeo_estructurado = {
+                        'data': [], 
+                        'sentinel': radar_nodes,
+                        'mode': sentinel_mode
+                    }
+                    placed.append((circuit['id'], mapeo_estructurado))
+                    print(f"  [+] 📡 Radar 25D anclado correctamente en posiciones estáticas.")
+                    continue
+                else:
+                    # Si no es de tamaño 25, es una víctima. Pasa de largo a la RAMA 2.
+                    pass
+            # === LÓGICA ANTIGUA (INTACTA) ===
             else:
-                reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinelas: espacio/ruido insuficiente."
-                errors.append(reason)
-            
-            continue # Saltamos la rama clásica y vamos al siguiente circuito
-
+                isla_data, centinelas = find_best_placement_with_sentinel(G, size, used_nodes, noise_threshold, sentinel_mode)
+                
+                if isla_data and centinelas:
+                    all_nodes = isla_data + centinelas 
+                    used_nodes.update(all_nodes)
+                    
+                    mapeo_estructurado = {
+                        'data': isla_data,
+                        'sentinel': centinelas,
+                        'mode': sentinel_mode
+                    }
+                    placed.append((circuit['id'], mapeo_estructurado))
+                    print(f"  [+] Isla {circuit['id']} mapeada: Datos={isla_data}, Centinelas={centinelas}")
+                else:
+                    reason = f"Circuito {circuit['id']} no pudo asignar Isla+Centinelas: espacio/ruido insuficiente."
+                    errors.append(reason)
+                
+                continue
         # =====================================================================
         # RAMA 2: ASIGNACIÓN CLÁSICA (SIN CENTINELAS)
         # =====================================================================

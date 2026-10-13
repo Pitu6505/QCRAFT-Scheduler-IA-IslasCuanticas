@@ -69,8 +69,12 @@ class Scheduler:
         self.transpilation_machine = self.scheduler_policies.get_ibm_machine()
         self.service = self.executeCircuitIBM.load_account_ibm()
 
-        if self.transpilation_machine != 'local': self.transpilation_backend = self.executeCircuitIBM.obtain_machine(self.service, self.transpilation_machine)
-
+        if self.transpilation_machine not in ['local', 'simulador_fez']: 
+            self.transpilation_backend = self.executeCircuitIBM.obtain_machine(self.service, self.transpilation_machine)
+        elif self.transpilation_machine == 'simulador_fez':
+            # Para medir la profundidad de los circuitos antes de simularlos, 
+            # necesitamos descargar la topología de la máquina física real.
+            self.transpilation_backend = self.executeCircuitIBM.obtain_machine(self.service, 'ibm_fez')
         self.app.route('/url', methods=['POST'])(self.store_url)
         self.app.route('/circuit', methods=['POST'])(self.store_url_circuit)
         self.app.route('/unscheduler', methods=['POST'])(self.unschedule_route)

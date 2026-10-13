@@ -106,7 +106,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 15
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'ibm_fez' #'simulador_fez' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -572,11 +572,12 @@ class SchedulerPolicies:
                 
                 loc['circuit'] = Program(source=qasm_string)
 
-        # =====================================================================
+# =====================================================================
         # 3. MODO SIN CENTINELAS (Circuitos originales o Políticas Básicas)
         # =====================================================================
         else:
-            layout_fisico_plano = None
+            # ⚠️ CAMBIO CRÍTICO: Rescatamos el layout recibido en lugar de ponerlo a None
+            layout_fisico_plano = layout_fisico  
             
             # Devolvemos las medidas si no estábamos usando FTQC
             if is_qiskit_parsed and qc_original:
@@ -641,9 +642,14 @@ class SchedulerPolicies:
         try:
             if provider == 'ibm':
                 if layout_fisico_plano is not None:
-                    counts = self.executeCircuitIBM.runIBM_save(
-                        machine, loc['circuit'], max(shots), [url[3] for url in urls],
-                        qb, [url[4] for url in urls], layout_fisico_estructurado # <--- CAMBIO AQUÍ
+                    counts = self.executeCircuitIBM.runIBM_save(           
+                        machine, 
+                        loc['circuit'], 
+                        max(shots), 
+                        [url[3] for url in urls],
+                        qb, 
+                        [url[4] for url in urls],
+                        layout_fisico=layout_fisico_plano  # <--- ESTO ES LO QUE FALTABA
                     )
                 else:
                     counts = self.executeCircuitIBM.runIBM_save(
