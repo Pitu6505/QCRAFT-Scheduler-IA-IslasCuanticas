@@ -310,10 +310,12 @@ class executeCircuitIBM:
         ids_file = os.path.join(script_dir, 'ids.txt')
         
         # Recuperar el nombre exacto del modo para el CSV
-        if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'mode' in layout_fisico[0]:
-            modo_inferido = layout_fisico[0]['mode']
-        else:
-            modo_inferido = "Global_o_Simulado"
+        modo_inferido = "Global_o_Simulado"
+        if layout_fisico is not None:
+            for item in layout_fisico:
+                if isinstance(item, dict) and 'mode' in item:
+                    modo_inferido = item['mode']
+                    break
 
         with open(ids_file, 'a') as file:
             # 🔑 AQUÍ METEMOS EL LAYOUT Y EL MODO EN EL ARCHIVO TEMPORAL
@@ -382,38 +384,45 @@ class executeCircuitIBM:
                 # Avanzamos el offset para el siguiente circuito en el layout
                 global_sentinel_idx += num_sents_isla
 
-        elif modo_inferido == 'radar_distribuido' and clave_c_flag is not None:
-            lista_c_flags = bitstrings_por_registro[clave_c_flag]
+# === EXTRACCIÓN PARA ML: MODO RADAR DISTRIBUIDO (25D) ===
+        elif modo_inferido == 'radar_distribuido':
+            # Buscamos dinámicamente cuál es el registro del espía (el único que mide exactamente 25 bits)
+            clave_c_flag = None
+            for k, bitstrings in bitstrings_por_registro.items():
+                if len(bitstrings) > 0 and len(bitstrings[0]) == 25:
+                    clave_c_flag = k
+                    break
             
-            # Vector de 25 posiciones (N0..N4, OE0..OE4, E0..E4, C0..C4, S0..S4)
-            errores_por_bit = {i: 0 for i in range(25)}
-            tasas_error_radar = [0.0] * 25 
-            
-            # Contabilizamos los unos
-            for shot_c_flag in lista_c_flags:
-                shot_reverso = shot_c_flag[::-1]
-                bits_espia = shot_reverso[:25] 
+            if clave_c_flag is not None:
+                lista_bits = bitstrings_por_registro[clave_c_flag]
+                tasas_error_radar = [0.0] * 25
+                errores_por_bit = {i: 0 for i in range(25)}
                 
-                for bit_idx, bit_val in enumerate(bits_espia):
-                    if bit_val == '1':
-                        errores_por_bit[bit_idx] += 1
-                        
-            # Calculamos las tasas
-            for i in range(25):
-                tasas_error_radar[i] = round(errores_por_bit[i] / x, 4) if x > 0 else 0.0
+                for shot_bits in lista_bits:
+                    shot_reverso = shot_bits[::-1] 
+                    bits_espia = shot_reverso[:25]  
+                    
+                    for bit_idx, bit_val in enumerate(bits_espia):
+                        if bit_val == '1':
+                            errores_por_bit[bit_idx] += 1
+                            
+                for i in range(25):
+                    tasas_error_radar[i] = round(errores_por_bit[i] / x, 4) if x > 0 else 0.0
+                    
+                registro = {
+                    "circuito_espia": "espia_radar_25.qasm",
+                    "victimas_concurrentes": [name for name in circuit_names if name != "espia_radar_25.qasm"],
+                    "vector_25d": tasas_error_radar,
+                    "layout_global": layout_fisico,
+                    "total_circuitos": len(layout_fisico)
+                }
                 
-            # Guardamos la muestra
-            registro = {
-                "circuito": "Ataque_Espia",
-                "victimas": circuit_names[1:], # Guardamos qué circuitos acompañaban al espía
-                "vector_25d": tasas_error_radar,
-                "layout_global_batch": layout_fisico,  
-                "total_circuitos_concurrentes": len(layout_fisico)
-            }
-            
-            with open("dataset_radar_distribuido.json", "a") as f:
-                f.write(json.dumps(registro) + "\n")
-            print(f"📡 Radar 25D Extraído contra {circuit_names[1:]}")
+                with open("dataset_radar_distribuido.json", "a") as f:
+                    f.write(json.dumps(registro) + "\n")
+                    
+                print(f"📡 [ML] Vector 25D extraído con éxito (Registro '{clave_c_flag}') y guardado.")
+            else:
+                print("⚠️ [ML] Error: No se encontró ningún registro clásico de 25 bits para el radar.")
         # ============================================
         # =========================================================================
 

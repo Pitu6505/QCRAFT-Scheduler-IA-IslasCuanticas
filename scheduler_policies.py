@@ -256,10 +256,10 @@ class SchedulerPolicies:
         if is_qiskit_parsed and layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
             from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
             
-            is_dynamic_local = any(mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
-            is_dynamic_local_initial = any(mapping.get('mode', 'standard').startswith('dynamic_local_initial') for mapping in layout_fisico)
-            is_dynamic_global = any(mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
-            is_post_selection_local = any(mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
+            is_dynamic_local = any(isinstance(mapping, dict) and mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+            is_dynamic_local_initial = any(isinstance(mapping, dict) and mapping.get('mode', 'standard').startswith('dynamic_local_initial') for mapping in layout_fisico)
+            is_dynamic_global = any(isinstance(mapping, dict) and mapping.get('mode', 'standard').startswith('dynamic') and not mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)
+            is_post_selection_local = any(isinstance(mapping, dict) and mapping.get('mode', 'standard').endswith('_local') and not mapping.get('mode', 'standard').startswith('dynamic') for mapping in layout_fisico)
             
             if is_dynamic_local:
                 c_flags = []
@@ -996,15 +996,15 @@ class SchedulerPolicies:
 
             formatted_queue = CircuitQueue()
             
-            # 📝 CAMBIO 1: Inicializamos la variable para guardar el modo del centinela
             sentinel_mode_batch = None 
-            
-            # 📝 CAMBIO 2: Leemos la tupla de forma segura, tenga 7 u 8 elementos
+
+            # 📝 CAMBIO 2: Leemos la tupla de forma segura
             for item in queue:
                 circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion = item[:7]
                 
-                # Si hay un octavo elemento, lo guardamos como el modo del centinela
-                if len(item) > 7:
+                # Solo guardamos el modo si existe y NO es None. 
+                # Así las víctimas no borrarán la configuración del espía.
+                if len(item) > 7 and item[7] is not None:
                     sentinel_mode_batch = item[7]
                     
                 edges = self.extract_edges_from_circuit(circuit) 

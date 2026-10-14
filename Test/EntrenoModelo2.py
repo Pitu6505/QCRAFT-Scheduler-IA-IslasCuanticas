@@ -1,7 +1,9 @@
 import aiohttp
 import asyncio
+import random
 
 url_api = 'http://localhost:8082/circuit'
+NUM_TANDAS = 10
 
 URL_ESPIA = "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/2%C2%BAModelo/circuits-code/IBM/QASM3/espia_radar_25.qasm" 
 
@@ -16,35 +18,45 @@ async def post_request(session, url, data):
     async with session.post(url, json=data) as response:
         return await response.text()
 
-async def lanzar_ataque_ciegas():
-    print(" INICIANDO SIMULACIÓN QAAS - 1 lote de ejecución")
-    
+async def lanzar_ataque_ciegas(num_tandas=NUM_TANDAS):
+    print(f"INICIANDO SIMULACIÓN QAAS - {num_tandas} tandas")
+
     async with aiohttp.ClientSession() as session:
-        print("\n--- Inyectando lote único ---")
-        tasks = []
+        for numero_tanda in range(1, num_tandas + 1):
+            print(f"\n--- Inyectando tanda {numero_tanda}/{num_tandas} ---")
+            circuitos = [
+                ("centinela radar_distribuido", {
+                    "url": URL_ESPIA,
+                    "shots": 4096,
+                    "provider": ['ibm'],
+                    "policy": "Islas_Cuanticas_Edges",
+                    "sentinel_mode": "radar_distribuido",
+                })
+            ]
 
-        data_espia = {
-            "url": URL_ESPIA,
-            "shots": 1000,
-            "provider": ['ibm'],
-            "policy": "Islas_Cuanticas_Edges",
-            "sentinel_mode": "radar_distribuido"
-        }
-        tasks.append(post_request(session, url_api, data_espia))
+            for nombre, url_victima in URLS_VICTIMAS.items():
+                circuitos.append((nombre, {
+                    "url": url_victima,
+                    "shots": 4096,
+                    "provider": ['ibm'],
+                    "policy": "Islas_Cuanticas_Edges",
+                }))
 
-        for name, url_victima in URLS_VICTIMAS.items():
-            data_victima = {
-                "url": url_victima,
-                "shots": 1000,
-                "provider": ['ibm'],
-                "policy": "Islas_Cuanticas_Edges",
-                
-            }
-            print(f" Encolando víctima: {name}")
-            tasks.append(post_request(session, url_api, data_victima))
+            random.shuffle(circuitos)
+            tasks = []
+            for nombre, datos in circuitos:
+                print(f"Encolando: {nombre}")
+                tasks.append(post_request(session, url_api, datos))
 
-        await asyncio.gather(*tasks)
-        print(f" Lote enviado: 1 centinela y {len(URLS_VICTIMAS)} víctimas únicas.")
+            await asyncio.gather(*tasks)
+            print(
+                f"Tanda {numero_tanda} enviada: 1 centinela y "
+                f"{len(URLS_VICTIMAS)} víctimas."
+            )
+
+            if numero_tanda < num_tandas:
+                print("Esperando 1 minuto antes de la siguiente tanda...")
+                await asyncio.sleep(60)
 
 if __name__ == "__main__":
     asyncio.run(lanzar_ataque_ciegas())
