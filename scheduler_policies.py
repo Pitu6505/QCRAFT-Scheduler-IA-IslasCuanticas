@@ -253,7 +253,15 @@ class SchedulerPolicies:
         # =====================================================================
         # 2. ENSAMBLADOR FTQC DINÁMICO (Circuitos con Centinelas)
         # =====================================================================
-        if is_qiskit_parsed and layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'sentinel' in layout_fisico[0]:
+        requiere_ftqc = False
+        if is_qiskit_parsed and layout_fisico is not None:
+            # Comprobamos si hay algún centinela que requiera inyección de puertas por Qiskit
+            for mapping in layout_fisico:
+                if isinstance(mapping, dict) and 'sentinel' in mapping and mapping.get('mode') != 'radar_distribuido':
+                    requiere_ftqc = True
+                    break
+
+        if requiere_ftqc:
             from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
             
             is_dynamic_local = any(isinstance(mapping, dict) and mapping.get('mode', 'standard').startswith('dynamic_local') for mapping in layout_fisico)

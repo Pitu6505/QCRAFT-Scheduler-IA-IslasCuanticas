@@ -3,7 +3,7 @@ import asyncio
 import random
 
 url_api = 'http://localhost:8082/circuit'
-NUM_TANDAS = 10
+NUM_TANDAS = 20
 
 URL_ESPIA = "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/2%C2%BAModelo/circuits-code/IBM/QASM3/espia_radar_25.qasm" 
 
@@ -34,7 +34,11 @@ async def lanzar_ataque_ciegas(num_tandas=NUM_TANDAS):
                 })
             ]
 
-            for nombre, url_victima in URLS_VICTIMAS.items():
+            cantidad_victimas = random.randint(1, min(4, len(URLS_VICTIMAS)))
+            victimas_seleccionadas = random.sample(
+                list(URLS_VICTIMAS.items()), cantidad_victimas
+            )
+            for nombre, url_victima in victimas_seleccionadas:
                 circuitos.append((nombre, {
                     "url": url_victima,
                     "shots": 4096,
@@ -51,12 +55,12 @@ async def lanzar_ataque_ciegas(num_tandas=NUM_TANDAS):
             await asyncio.gather(*tasks)
             print(
                 f"Tanda {numero_tanda} enviada: 1 centinela y "
-                f"{len(URLS_VICTIMAS)} víctimas."
+                f"{cantidad_victimas} víctimas."
             )
 
             if numero_tanda < num_tandas:
-                print("Esperando 1 minuto antes de la siguiente tanda...")
-                await asyncio.sleep(60)
+                print("Esperando 30 segundos antes de la siguiente tanda...")
+                await asyncio.sleep(30)
 
 if __name__ == "__main__":
     asyncio.run(lanzar_ataque_ciegas())

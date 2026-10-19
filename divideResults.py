@@ -77,8 +77,19 @@ def divideResults(id_job:str, counts:dict, shots:list, provider:str, qb:list, us
             if len(layout_fisico) > 0 and isinstance(layout_fisico[0], dict):
                 # Extraemos SÓLO los datos y centinelas correspondientes al índice de este circuito
                 if i < len(layout_fisico):
-                    qubits_datos = layout_fisico[i].get('data', "N/A")
-                    qubits_centinelas = layout_fisico[i].get('sentinel', "N/A")
+                    # Nuevo bloque protector de tipos
+                    qubits_datos = "N/A"
+                    qubits_centinelas = "N/A"
+                    
+                    if layout_fisico and i < len(layout_fisico):
+                        if isinstance(layout_fisico[i], dict):
+                            qubits_datos = layout_fisico[i].get('data', "N/A")
+                            qubits_centinelas = layout_fisico[i].get('sentinel', "N/A")
+                        elif isinstance(layout_fisico[i], list):
+                            qubits_datos = layout_fisico[i]
+                        else:
+                            # Si llega un número entero (víctima en layout aplanado), evitamos el error
+                            qubits_datos = "Asignado en layout global"
                     
                     # Sobrescribimos el modo si venía en el layout y no lo capturamos antes
                     if modo_inferido in ["Desconocido", "Simulado"] and 'mode' in layout_fisico[i]:
