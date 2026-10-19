@@ -5,8 +5,9 @@ import networkx as nx
 from networkx.algorithms import isomorphism
 from collections import deque
 import time
+from typing import Dict, Iterable, Optional
 
-def calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util):
+def calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util, verbose=True):
     """
     Calcula un umbral dinámico de ruido basado en los percentiles de la máquina.
     Por defecto usa el percentil 95, permitiendo usar el 95% de los qubits.
@@ -15,20 +16,27 @@ def calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util):
     noise_values.sort()
     index = int(len(noise_values) * percentile / 100)
     dynamic_threshold = noise_values[min(index, len(noise_values) - 1)]
-    print(f" Umbral dinámico calculado: {dynamic_threshold:.4f} (percentil {percentile})")
+    if verbose:
+        print(f" Umbral dinámico calculado: {dynamic_threshold:.4f} (percentil {percentile})")
     return dynamic_threshold
 
-def is_far_enough(G, candidate_nodes, used_nodes):
+def is_far_enough(G, candidate_nodes, used_nodes, min_circuit_distance=MIN_CIRCUIT_DISTANCE):
     for u in candidate_nodes:
         for v in used_nodes:
             try:
-                if nx.shortest_path_length(G, u, v) <= MIN_CIRCUIT_DISTANCE:
+                if nx.shortest_path_length(G, u, v) <= min_circuit_distance:
                     return False
             except nx.NetworkXNoPath:
                 continue
     return True
 
-def find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold=None):
+def find_isomorphic_subgraph(
+    G,
+    logical_graph,
+    used_nodes,
+    noise_threshold=None,
+    min_circuit_distance=MIN_CIRCUIT_DISTANCE,
+):
     if noise_threshold is None:
         noise_threshold = MAX_NOISE_THRESHOLD
     
@@ -43,13 +51,27 @@ def find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold=None)
             node_match=lambda n1, n2: n1.get("noise", 0) <= noise_threshold
         )
         for match in matcher.subgraph_isomorphisms_iter():
-            candidate = list(match.keys())
+            logical_to_physical = {
+                logical_node: physical_node
+                for physical_node, logical_node in match.items()
+            }
+            candidate = [logical_to_physical[node] for node in logical_graph.nodes]
             if all(G.nodes[n]['noise'] <= noise_threshold for n in candidate):
-                if is_far_enough(G, candidate, used_nodes):
+                if is_far_enough(G, candidate, used_nodes, min_circuit_distance):
                     return candidate
     return None
 
-def bfs_connected_groups(G, start, size, used_nodes, noise_threshold=None, max_solutions=3, max_iterations=1000):
+def bfs_connected_groups(
+    G,
+    start,
+    size,
+    used_nodes,
+    noise_threshold=None,
+    max_solutions=3,
+    max_iterations=1000,
+    verbose=True,
+    min_circuit_distance=MIN_CIRCUIT_DISTANCE,
+):
     """
     Búsqueda BFS optimizada con límites AGRESIVOS para evitar explosión exponencial.
     
@@ -75,7 +97,7 @@ def bfs_connected_groups(G, start, size, used_nodes, noise_threshold=None, max_s
         # Si alcanzamos el tamaño deseado, validar y agregar
         if len(path) == size:
             if all(G.nodes[n]['noise'] <= noise_threshold for n in path):
-                if is_far_enough(G, path, used_nodes):
+                if is_far_enough(G, path, used_nodes, min_circuit_distance):
                     groups.append(list(path))
                     if len(groups) >= max_solutions:  # Salir temprano si encontramos suficientes
                         break
@@ -88,56 +110,89 @@ def bfs_connected_groups(G, start, size, used_nodes, noise_threshold=None, max_s
                     if G.nodes[neighbor]['noise'] <= noise_threshold:
                         queue.append(path + [neighbor])
     
-    if iterations >= max_iterations and not groups:
+    if verbose and iterations >= max_iterations and not groups:
         print(f"⚠️ BFS timeout para size={size} (sin soluciones en {max_iterations} iteraciones)")
     
     return groups
 
-def place_circuits_logical(G, circuits, max_time_seconds=30):
+def place_circuits_logical(
+    G,
+    circuits,
+    max_time_seconds=30,
+    enabled_levels: Optional[Iterable[int]] = None,
+    placement_levels: Optional[Dict[object, int]] = None,
+    verbose=True,
+    min_circuit_distance=MIN_CIRCUIT_DISTANCE,
+):
     """
     Asigna circuitos a qubits físicos con timeout global.
     
     Args:
         max_time_seconds: Tiempo máximo total de ejecución (default: 30 segundos)
+        enabled_levels: Estrategias activas: 1 (isomorfismo), 2 (componentes),
+            3 (búsqueda general). Por defecto se activan las tres.
+        placement_levels: Si se proporciona, recibe el nivel que colocó cada circuito.
+        verbose: Muestra los mensajes de progreso y depuración.
+        min_circuit_distance: Distancia mínima entre circuitos colocados.
     """
+    enabled_levels = set((1, 2, 3) if enabled_levels is None else enabled_levels)
+    invalid_levels = enabled_levels - {1, 2, 3}
+    if invalid_levels:
+        raise ValueError(f"Niveles de colocación no válidos: {sorted(invalid_levels)}")
+
     placed = []
     errors = []
     used_nodes = set()
     start_time = time.time()
     
     # Calcular umbral dinámico basado en la máquina actual
-    dynamic_threshold = calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util)
+    dynamic_threshold = calculate_dynamic_noise_threshold(
+        G,
+        percentile=Porcentaje_util,
+        verbose=verbose,
+    )
     noise_threshold = dynamic_threshold                 #max(MAX_NOISE_THRESHOLD, dynamic_threshold)  # Usar el mayor, si quieres usar solo dinámico, cambia esto
-    print(f" Usando umbral de ruido: {noise_threshold:.4f}")
+    if verbose:
+        print(f" Usando umbral de ruido: {noise_threshold:.4f}")
 
     for idx, circuit in enumerate(circuits):
         # Verificar timeout global
         elapsed = time.time() - start_time
         if elapsed > max_time_seconds:
-            print(f" TIMEOUT GLOBAL: {elapsed:.2f}s > {max_time_seconds}s. Procesados {len(placed)}/{len(circuits)} circuitos.")
+            if verbose:
+                print(f" TIMEOUT GLOBAL: {elapsed:.2f}s > {max_time_seconds}s. Procesados {len(placed)}/{len(circuits)} circuitos.")
             remaining = [c['id'] for c in circuits if c['id'] not in [p[0] for p in placed]]
             for cid in remaining:
                 errors.append(f"Circuito {cid} no procesado por timeout global")
             break
         
         # Progress indicator cada 5 circuitos
-        if idx % 5 == 0:
+        if verbose and idx % 5 == 0:
             print(f" Progreso: {idx}/{len(circuits)} circuitos procesados ({elapsed:.1f}s transcurridos)")
 
         # Solo intentar isomorfismo para circuitos pequeños (≤4 qubits) - más rápido y probable, si no va, poner aqui > 4
-        if 'edges' in circuit and circuit['edges'] and circuit['size'] <= 4:
+        if 1 in enabled_levels and 'edges' in circuit and circuit['edges'] and circuit['size'] <= 4:
             logical_graph = nx.Graph()
             logical_graph.add_nodes_from(range(circuit['size']))  # Añadir TODOS los nodos primero
             logical_graph.add_edges_from(circuit['edges'])
-            mapping = find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold)
+            mapping = find_isomorphic_subgraph(
+                G,
+                logical_graph,
+                used_nodes,
+                noise_threshold,
+                min_circuit_distance,
+            )
 
             if mapping:
                 used_nodes.update(mapping)
                 placed.append((circuit['id'], mapping))
+                if placement_levels is not None:
+                    placement_levels[circuit['id']] = 1
                 continue
             else:
-                print(f"⚠️ No se encontró isomorfismo para circuito {circuit['id']} (size={circuit['size']}), usando BFS optimizado")
-        elif 'edges' in circuit and circuit['edges'] and circuit['size'] > 4:
+                if verbose and (2 in enabled_levels or 3 in enabled_levels):
+                    print(f"⚠️ No se encontró isomorfismo para circuito {circuit['id']} (size={circuit['size']}), usando BFS optimizado")
+        elif 1 in enabled_levels and 'edges' in circuit and circuit['edges'] and circuit['size'] > 4:
             # Circuitos grandes: saltar isomorfismo directamente (muy costoso)
             pass  # Continuar al mapeo estándar
 
@@ -145,17 +200,19 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
         size = circuit['size']
         
         # Si el circuito tiene edges definidos, obtener componentes conectados
-        if 'edges' in circuit and circuit['edges']:
+        if 2 in enabled_levels and 'edges' in circuit and circuit['edges']:
             logical_graph = nx.Graph()
             logical_graph.add_nodes_from(range(size))  # Asegurar que todos los nodos existen
             logical_graph.add_edges_from(circuit['edges'])
             components = list(nx.connected_components(logical_graph))
             
-            print(f" [DEBUG] Circuito {circuit['id']}: size={size}, edges={circuit['edges']}, componentes={components}")
+            if verbose:
+                print(f" [DEBUG] Circuito {circuit['id']}: size={size}, edges={circuit['edges']}, componentes={components}")
             
             # Si hay componentes desconectados, asignar cada uno por separado
             if len(components) > 1:
-                print(f"  → Detectados {len(components)} componentes desconectados, asignando por separado...")
+                if verbose:
+                    print(f"  → Detectados {len(components)} componentes desconectados, asignando por separado...")
                 all_assigned = []
                 success = True
                 
@@ -173,7 +230,7 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
                             node_noise = G.nodes[node]['noise']
                             if node_noise <= noise_threshold and node_noise < best_noise:
                                 # Verificar distancia mínima
-                                if is_far_enough(G, [node], used_nodes):
+                                if is_far_enough(G, [node], used_nodes, min_circuit_distance):
                                     best_noise = node_noise
                                     best_node = node
                         
@@ -198,7 +255,16 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
                         max_nodes_to_explore = min(5, len(sorted_nodes))  # Límite REDUCIDO: 5 nodos (antes 20)
                         
                         for node in sorted_nodes[:max_nodes_to_explore]:
-                            candidate_groups = bfs_connected_groups(G, node, comp_size, used_nodes, noise_threshold, max_solutions=2)
+                            candidate_groups = bfs_connected_groups(
+                                G,
+                                node,
+                                comp_size,
+                                used_nodes,
+                                noise_threshold,
+                                max_solutions=2,
+                                verbose=verbose,
+                                min_circuit_distance=min_circuit_distance,
+                            )
                             
                             if candidate_groups:  # Si encontramos soluciones, tomar la mejor
                                 for group in candidate_groups:
@@ -216,14 +282,24 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
                             break
                 
                 if success:
-                    print(f"  Asignación exitosa de componentes: {all_assigned}")
+                    if verbose:
+                        print(f"  Asignación exitosa de componentes: {all_assigned}")
                     placed.append((circuit['id'], all_assigned))
+                    if placement_levels is not None:
+                        placement_levels[circuit['id']] = 2
                     continue
                 else:
                     # Revertir nodos usados si falló
                     for node in all_assigned:
                         used_nodes.discard(node)
         
+        if 3 not in enabled_levels:
+            errors.append(
+                f"Circuito {circuit['id']} no se pudo asignar con los niveles activos "
+                f"{sorted(enabled_levels)}."
+            )
+            continue
+
         # Mapeo estándar para circuitos sin estructura o componentes completamente conectados (optimizado)
         best_group = None
         best_noise = float('inf')
@@ -238,7 +314,16 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
         max_nodes_to_explore = min(10, len(sorted_nodes))
         
         for node in sorted_nodes[:max_nodes_to_explore]:
-            candidate_groups = bfs_connected_groups(G, node, size, used_nodes, noise_threshold, max_solutions=2)
+            candidate_groups = bfs_connected_groups(
+                G,
+                node,
+                size,
+                used_nodes,
+                noise_threshold,
+                max_solutions=2,
+                verbose=verbose,
+                min_circuit_distance=min_circuit_distance,
+            )
 
             if candidate_groups:  # Si encontramos soluciones, tomar la mejor
                 for group in candidate_groups:
@@ -251,10 +336,12 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
         if best_group:
             used_nodes.update(best_group)
             placed.append((circuit['id'], best_group))
+            if placement_levels is not None:
+                placement_levels[circuit['id']] = 3
         else:
             reason = f"Circuito {circuit['id']} no se pudo asignar: "
             reason += f"no hay {circuit['size']} qubits adyacentes y conectados con ruido ≤ {noise_threshold:.4f} "
-            reason += f"y separados al menos {MIN_CIRCUIT_DISTANCE} de otros."
+            reason += f"y separados al menos {min_circuit_distance} de otros."
             errors.append(reason)
 
     return placed, errors

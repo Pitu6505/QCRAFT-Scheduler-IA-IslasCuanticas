@@ -222,6 +222,49 @@ data = {
 requests.post("http://localhost:8082/circuit", json=data)
 ```
 
+### Comparing placement levels without execution
+
+The placement-level analysis script is in `Test`, next to the asynchronous
+scheduler scripts. By default it reads the `urls` dictionary in
+`scheduler-async_IslasEdges_Short.py` (without importing or executing that
+submission script), downloads each raw GitHub Python circuit, and compares the
+existing placement strategies in this order:
+
+1. Level 3 only: general connected-qubit search.
+2. Levels 2 + 3: component-aware placement, then general search.
+3. Levels 1 + 2 + 3: exact subgraph isomorphism, then the two fallbacks.
+
+Add as many circuits as needed to that `urls` dictionary (for example, 30),
+then run it from `QCRAFT-Scheduler`:
+
+```powershell
+python Test\analizar_niveles_colocacion.py --provider ibm --backend ibm_fez --levels 3
+```
+
+The results are written to `resultados_niveles_colocacion.csv`. To use a
+different dictionary, pass `--urls-file ruta\al\fichero.py`; a JSON object
+mapping circuit names to raw GitHub URLs is also supported.
+For IBM, select the QPU whose topology should be used with `--backend` (the
+default is `ibm_fez`). AWS currently uses the Ankaa-3 topology.
+`--levels 3` runs only the general search strategy. No extra physical-qubit
+separation is reserved between circuits. If the current iteration cannot fit
+all remaining circuits, the analyzer starts another iteration with a fresh
+placement and retries the unplaced circuits on the same QPU topology. Each
+iteration represents a separate execution batch; qubits are reused between
+iterations. At the end, the console and CSV include the total estimated SWAP
+count for each selected scenario, summing over all iterations.
+
+The provider's backend credentials and configuration must already be set up as
+for the scheduler. The tool does not submit or execute circuits. Its SWAP
+figure is an estimate that sums `shortest_path_distance - 1` for each distinct
+logical interaction pair; it is useful for comparing placements, but it is not
+the exact gate count produced by Qiskit's transpiler. Only statically declare
+single-`QuantumRegister` sizes and indexed register operands are analyzed.
+The report names the strategy that actually placed the circuit: level 1 (VF2
+exact isomorphism), level 2 (component-aware placement), or level 3 (general
+search). For circuits larger than four qubits, the current placement algorithm
+skips VF2.
+
 ### Retrieving Results
 
 All requests return a unique circuit ID. Use it to fetch results:
