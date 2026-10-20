@@ -1075,7 +1075,6 @@ class SchedulerPolicies:
                 file.write("\n")
 
 
-            executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['time'].timers[provider].reset()
 
     
