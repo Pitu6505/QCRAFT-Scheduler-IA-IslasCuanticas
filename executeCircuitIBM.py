@@ -14,6 +14,24 @@ import qiskit
 import numpy as np
 import re
 import threading
+import time
+from numbers import Integral
+
+_METRICS_LOCK = threading.Lock()
+
+
+def is_valid_physical_layout(layout, logical_qubit_count, backend_qubit_count):
+    return (
+        isinstance(layout, (list, tuple))
+        and len(layout) == logical_qubit_count
+        and all(
+            isinstance(qubit, Integral) and not isinstance(qubit, bool)
+            for qubit in layout
+        )
+        and len(set(layout)) == len(layout)
+        and all(0 <= qubit < backend_qubit_count for qubit in layout)
+    )
+
 
 class executeCircuitIBM:
     def __init__(self):
@@ -31,10 +49,19 @@ class executeCircuitIBM:
         Returns:
             QiskitRuntimeService: The service with the IBM Quantum account loaded.
         """
-        # Load your IBM Quantum account
-        return QiskitRuntimeService(channel="ibm_cloud",
-                                   token="",
-                                   instance="")
+        token = os.getenv("IBM_QUANTUM_TOKEN")
+        instance = os.getenv("IBM_QUANTUM_INSTANCE")
+        if token is not None or instance is not None:
+            if not token or not instance:
+                raise ValueError(
+                    "Configura conjuntamente IBM_QUANTUM_TOKEN e IBM_QUANTUM_INSTANCE."
+                )
+            return QiskitRuntimeService(
+                channel="ibm_cloud",
+                token=token,
+                instance=instance,
+            )
+        return QiskitRuntimeService()
 
     def obtain_machine(self, service:QiskitRuntimeService ,machine:str) -> qiskit.providers.BackendV2:
         """
@@ -201,7 +228,16 @@ class executeCircuitIBM:
         counts = result[0].data.creg_c.get_counts()
         return counts
 
-    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
+    def runIBM_save(
+        self,
+        machine: str,
+        circuit: QuantumCircuit,
+        shots: int,
+        users: list,
+        qubit_number: list,
+        circuit_names: list,
+        layout_fisico=None,
+    ) -> dict:
         """
         Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
 
@@ -212,6 +248,8 @@ class executeCircuitIBM:
             users (list): The users that executed the circuit.        
             qubit_number (list): The number of qubits of the circuit per user.        
             circuit_names (list): The name of the circuit that was executed per user.
+            layout_fisico (list, optional): Physical qubit layout from the placement
+                policy. It is passed to Qiskit as the transpilation initial layout.
 
         Returns:
             dict: The results of the circuit execution.
@@ -230,39 +268,93 @@ class executeCircuitIBM:
             service = self.service
             backend = service.backend(machine)
             sampler = Sampler(mode=backend)
-            #sampler.options.execution.rep_delay = 0.5 # set it to the maximum of the machine instead -> config.rep_delay_range[1]
+            layout_applied = layout_fisico is not None
+            if layout_applied and not is_valid_physical_layout(
+                layout_fisico,
+                circuit.num_qubits,
+                backend.num_qubits,
+            ):
+                print(
+                    "ERROR: El layout físico recibido no es válido para este "
+                    "circuito/backend; se transpilará sin layout inicial."
+                )
+                layout_applied = False
+
+            transpilation_start = time.perf_counter()
             with self.transpile_lock:
-                qc_basis = transpile(circuit, backend=backend)
+                if not layout_applied:
+                    qc_basis = transpile(circuit, backend=backend)
+                else:
+                    qc_basis = transpile(
+                        circuit,
+                        backend=backend,
+                        initial_layout=layout_fisico,
+                    )
+            transpilation_seconds = time.perf_counter() - transpilation_start
             x = int(shots)
 
-            while True:
-                with self.condition:   
-                    if self.queued_jobs < 3:
-                        self.queued_jobs += 1
-                        job = sampler.run([qc_basis], shots=x)
-                        break
-                    else:
+            slot_reserved = False
+            try:
+                while True:
+                    with self.condition:
+                        if self.queued_jobs < 3:
+                            self.queued_jobs += 1
+                            slot_reserved = True
+                            execution_start = time.perf_counter()
+                            job = sampler.run([qc_basis], shots=x)
+                            break
                         self.condition.wait()
 
+                id = job.job_id()
+                provider = 'ibm'
+                user_shots = [shots] * len(circuit_names)
+                script_dir = os.path.dirname(os.path.realpath(__file__))
+                ids_file = os.path.join(script_dir, 'ids.txt')
+                with open(ids_file, 'a') as file:
+                    file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
+                    file.write('\n')
 
-            # -----------------------------------------------------#
-            id = job.job_id() # Get the job id
-            provider = 'ibm'
-            user_shots = [shots] * len(circuit_names)
-            script_dir = os.path.dirname(os.path.realpath(__file__))
-            ids_file = os.path.join(script_dir, 'ids.txt')  # create the path to the results file in the script's directory
-            with open(ids_file, 'a') as file:
-                file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names)}))
-                file.write('\n')
-            # Write the id in a file, along with the users, and their qubit numbers
-            # -----------------------------------------------------#
+                result = job.result()
+                counts = result[0].data.creg_c.get_counts()
+                execution_seconds = time.perf_counter() - execution_start
+            finally:
+                if slot_reserved:
+                    with self.condition:
+                        self.queued_jobs -= 1
+                        self.condition.notify()
 
-            result = job.result()
-            counts = result[0].data.creg_c.get_counts()
-
-            with self.condition:
-                self.queued_jobs -= 1
-                self.condition.notify()
+            operation_counts = {
+                str(operation): int(count)
+                for operation, count in qc_basis.count_ops().items()
+            }
+            two_qubit_gate_count = sum(
+                instruction.operation.num_qubits == 2
+                for instruction in qc_basis.data
+            )
+            metrics = {
+                "job_id": id,
+                "backend": machine,
+                "users": [str(user) for user in users],
+                "circuit_names": circuit_names,
+                "shots": x,
+                "placement_layout_applied": layout_applied,
+                "transpilation_seconds": transpilation_seconds,
+                "execution_seconds": execution_seconds,
+                "transpiled_depth": qc_basis.depth(),
+                "swap_gate_count": operation_counts.get("swap", 0),
+                "two_qubit_gate_count": two_qubit_gate_count,
+                "operation_counts": operation_counts,
+            }
+            metrics_path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "resultados_metricas_ibm.jsonl",
+            )
+            try:
+                with _METRICS_LOCK:
+                    with open(metrics_path, "a", encoding="utf-8") as file:
+                        file.write(json.dumps(metrics) + "\n")
+            except OSError as error:
+                print(f"ERROR: No se pudieron guardar las métricas IBM: {error}")
 
             # -----------------------------------------------------#
 

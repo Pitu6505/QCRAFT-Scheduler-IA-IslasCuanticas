@@ -3,6 +3,7 @@ import unittest
 import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import networkx as nx
 
@@ -14,7 +15,10 @@ from analizar_niveles_colocacion import (
     selected_level_scenarios,
     summarize_swaps,
 )
-from placement_algorithm_logical import place_circuits_logical
+from placement_algorithm_logical import (
+    find_isomorphic_subgraph,
+    place_circuits_logical,
+)
 
 
 class AnalyzePlacementLevelsTests(unittest.TestCase):
@@ -159,6 +163,26 @@ circuit.h(qreg_q[1])
         physical_qubits = placements[0][1]
         self.assertTrue(graph.has_edge(physical_qubits[0], physical_qubits[1]))
         self.assertTrue(graph.has_edge(physical_qubits[0], physical_qubits[2]))
+
+    def test_vf2_skips_nodes_blocked_by_used_qubits_and_minimum_distance(self):
+        graph = nx.path_graph(8)
+        nx.set_node_attributes(graph, 0.0, "noise")
+        logical_graph = nx.path_graph(2)
+        used_nodes = {0, 4}
+
+        with patch(
+            "placement_algorithm_logical.isomorphism.GraphMatcher"
+        ) as matcher:
+            result = find_isomorphic_subgraph(
+                graph,
+                logical_graph,
+                used_nodes,
+                noise_threshold=0.0,
+                min_circuit_distance=2,
+            )
+
+        matcher.assert_not_called()
+        self.assertIsNone(result)
 
     def test_swap_estimate_uses_shortest_path_distance(self):
         graph = nx.path_graph(4)

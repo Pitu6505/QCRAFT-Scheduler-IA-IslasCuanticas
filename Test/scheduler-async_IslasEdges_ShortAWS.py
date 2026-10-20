@@ -6,6 +6,8 @@ pathURL = 'url'
 pathResult = 'result'
 pathCircuit = 'circuit'
 
+# Cambia esta lista para activar los niveles de colocación que quieras.
+PLACEMENT_LEVELS = [3]
 
 urls = {
     "deutsch-jozsa": "https://raw.githubusercontent.com/jorgecs/CompositionCircuits/main/circuits_braket/Deutsch-Jozsa.py",
@@ -24,6 +26,7 @@ urls = {
 
 async def post_request(session, url, data):
     async with session.post(url, json=data) as response:
+        response.raise_for_status()
         return await response.text()
 
 async def main():
@@ -31,7 +34,8 @@ async def main():
         "url": "",
         "shots": 10,
         "provider": ['aws'],
-        "policy": "Islas_Cuanticas_Edges"
+        "policy": "Islas_Cuanticas_Edges",
+        "placement_levels": PLACEMENT_LEVELS,
     }
     async with aiohttp.ClientSession() as session:
         tasks = []

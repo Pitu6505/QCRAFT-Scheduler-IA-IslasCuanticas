@@ -1,14 +1,23 @@
+import os
+
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-API_KEY = ""
-INSTANCE_CRN = ""
 
 def get_backend_graph(backend_name="ibm_fez"):
-    service = QiskitRuntimeService(
-        channel="ibm_cloud",
-        token=API_KEY,
-        instance=INSTANCE_CRN
-    )
+    token = os.getenv("IBM_QUANTUM_TOKEN")
+    instance = os.getenv("IBM_QUANTUM_INSTANCE")
+    if token is not None or instance is not None:
+        if not token or not instance:
+            raise ValueError(
+                "Configura conjuntamente IBM_QUANTUM_TOKEN e IBM_QUANTUM_INSTANCE."
+            )
+        service = QiskitRuntimeService(
+            channel="ibm_cloud",
+            token=token,
+            instance=instance,
+        )
+    else:
+        service = QiskitRuntimeService()
     backend = service.backend(backend_name)
     properties = backend.properties()
     coupling_map = backend.configuration().coupling_map

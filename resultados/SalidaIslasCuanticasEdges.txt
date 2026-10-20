@@ -1,4 +1,0 @@
-Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000001AC91B4D7F0>
-Cola Seleccionada:[{'id': '165020413588108157042049896743205816983', 'size': 2}]
-Layout Físico:[0, 7]
-Tiempo Ejecucion:0.484375

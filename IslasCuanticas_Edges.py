@@ -14,7 +14,7 @@ from utiles.debug import (
 from utiles.metrics import estimar_swap_noise, calcular_ruido_swaps_con_logica
 
 
-def Cola_Formateada_edges(queue: CircuitQueue, provider: str):
+def Cola_Formateada_edges(queue: CircuitQueue, provider: str, enabled_levels=None):
     """
     Recibe una cola de circuitos y devuelve:
     - La cola formateada (solo los circuitos que realmente han sido asignados)
@@ -41,7 +41,11 @@ def Cola_Formateada_edges(queue: CircuitQueue, provider: str):
         print(f"  - id={c['id']}, size={c['size']}")
 
     # Paso 2: Ejecutar el algoritmo de asignación
-    placements, errores = place_circuits_logical(G, queue.get_queue())
+    placements, errores = place_circuits_logical(
+        G,
+        queue.get_queue(),
+        enabled_levels=enabled_levels,
+    )
 
     print("\n [DEBUG] Resultado de placements:")
     for p in placements:

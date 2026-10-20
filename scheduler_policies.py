@@ -21,6 +21,7 @@ import torch.optim as optim
 import torch.utils.data
 from qiskit import QuantumCircuit
 import threading
+from functools import partial
 from typing import Callable, Iterator
 from itertools import combinations
 import time
@@ -102,7 +103,7 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 10
+        self.time_limit_seconds = 20
         self.max_qubits = 133
         self.forced_threshold = 12
         self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
@@ -134,6 +135,25 @@ class SchedulerPolicies:
                         'Islas_Cuanticas': Policy(self.send_graph_placement, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'Islas_Cuanticas_Edges': Policy(self.send_graph_placement_edges, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         }
+        for level_count in range(1, 4):
+            for enabled_levels in combinations((1, 2, 3), level_count):
+                policy_name = (
+                    "Islas_Cuanticas_Edges_Niveles_"
+                    + "_".join(map(str, enabled_levels))
+                )
+                policy = partial(
+                    self.send_graph_placement_edges,
+                    enabled_levels=set(enabled_levels),
+                    service_name=policy_name,
+                )
+                self.services[policy_name] = Policy(
+                    policy,
+                    self.max_qubits,
+                    self.time_limit_seconds,
+                    self.executeCircuit,
+                    self.machine_aws,
+                    self.machine_ibm,
+                )
 
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.unscheduler = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/unscheduler"
@@ -522,7 +542,16 @@ class SchedulerPolicies:
             else:
                 self.services['Islas_Cuanticas'].timers[provider].reset()
 
-    def send_graph_placement_edges(self, queue, max_qubits, provider, executeCircuit, machine):
+    def send_graph_placement_edges(
+        self,
+        queue,
+        max_qubits,
+        provider,
+        executeCircuit,
+        machine,
+        enabled_levels=None,
+        service_name='Islas_Cuanticas_Edges',
+    ):
         """
         Política que asigna circuitos a qubits físicos usando el grafo + edges de los circuitos.
         """
@@ -532,7 +561,7 @@ class SchedulerPolicies:
 
             if not queue:
                 print("⚠️ La cola está vacía, deteniendo temporizador.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                self.services[service_name].timers[provider].stop()
                 return
 
             # Proveedor que se esta utilizando
@@ -551,13 +580,17 @@ class SchedulerPolicies:
             print(f"Cola formateada con edges: {formatted_queue.get_queue()}")
 
             # Llamada al método que ya tienes implementado
-            cola_procesada, layout_fisico = Cola_Formateada_edges(formatted_queue, provider)
+            cola_procesada, layout_fisico = Cola_Formateada_edges(
+                formatted_queue,
+                provider,
+                enabled_levels=enabled_levels,
+            )
             print(f" Cola procesada: {cola_procesada}")
             print(f" Layout físico asignado: {layout_fisico}")
 
             if not cola_procesada:
                 print(" No se han seleccionado elementos, deteniendo ejecución.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                self.services[service_name].timers[provider].stop()
                 return
 
             seleccionados_ids = {str(s['id']) for s in cola_procesada}
@@ -587,7 +620,16 @@ class SchedulerPolicies:
             elapsed_time = end_time - start_time
             print(f"Tiempo de ejecución de send_edges: {elapsed_time:.6f} segundos")
 
-            with open("./resultados/SalidaIslasCuanticasEdges.txt", 'a') as file:
+            results_dir = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "resultados",
+            )
+            os.makedirs(results_dir, exist_ok=True)
+            log_path = os.path.join(
+                results_dir,
+                "SalidaIslasCuanticasEdges.txt",
+            )
+            with open(log_path, 'a', encoding='utf-8') as file:
                 file.write("Cola Formateada con edges:")
                 file.write(str(formatted_queue))
                 file.write("\n")
@@ -603,9 +645,9 @@ class SchedulerPolicies:
 
             if not queue:
                 print(" Cola vacía después de ejecución, deteniendo temporizador.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                self.services[service_name].timers[provider].stop()
             else:
-                self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
+                self.services[service_name].timers[provider].reset()
 
         
 

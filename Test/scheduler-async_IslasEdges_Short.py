@@ -6,6 +6,8 @@ pathURL = 'url'
 pathResult = 'result'
 pathCircuit = 'circuit'
 
+# Cambia esta lista para activar los niveles de colocación que quieras.
+PLACEMENT_LEVELS = [1 , 2, 3]
 
 urls = {
     # "Combinational-Mapping-1": "https://raw.githubusercontent.com/Qcraft-UEx/QCRAFT-Scheduler/main/circuits-code//combinational/mapping/20QBT_16CYC_32GN_1.0P2_0_vq.py",
@@ -88,6 +90,7 @@ urls = {
 
 async def post_request(session, url, data):
     async with session.post(url, json=data) as response:
+        response.raise_for_status()
         return await response.text()
 
 async def main():
@@ -95,7 +98,7 @@ async def main():
         "url": "",
         "shots": 10000,
         "provider": ['ibm'],
-        "policy": "Islas_Cuanticas_Edges"
+        "policy": "time",
     }
     async with aiohttp.ClientSession() as session:
         tasks = []

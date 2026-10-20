@@ -85,10 +85,9 @@ pip install -r requirements.txt
 ```
 
 ### Step 3: Configure API Credentials
-Edit the API credentials in the following files:
-- `ibm_api.py`: Set your IBM Quantum API token and instance CRN
-- `executeCircuitIBM.py`: Configure your IBM Runtime credentials
-- `executeCircuitAWS.py`: Configure your AWS Braket credentials (if using AWS)
+Configure IBM Runtime with a saved Qiskit account or set the environment
+variables `IBM_QUANTUM_TOKEN` and `IBM_QUANTUM_INSTANCE`. Do not place API
+tokens in source files. Configure AWS credentials separately if using Braket.
 
 ### Step 4: Set Up MongoDB Database
 ```bash
@@ -210,7 +209,112 @@ response = requests.post("http://localhost:8082/url", json=data)
 
 Import circuits directly from GitHub repositories:
 
+```
+import requests
+
+data = {
+    "url": "https://raw.githubusercontent.com/user/repo/branch/file.py",
+    "shots": 10000,
+    "provider": "ibm",
+    "policy": "Islas_Cuanticas_Edges",
+}
+
+response = requests.post("http://localhost:8082/circuit", json=data)
+```
+
+### Elegir niveles de colocación en los scripts de prueba
+
+En cualquiera de los scripts de prueba de `Test` que use la política
+`Islas_Cuanticas_Edges`, elige los niveles cambiando `PLACEMENT_LEVELS`:
+
 ```python
+PLACEMENT_LEVELS = [3]        # Solo nivel 3
+# PLACEMENT_LEVELS = [2, 3]   # Niveles 2 y 3
+# PLACEMENT_LEVELS = [1, 2, 3]  # Todos
+```
+
+Pasa ese parámetro en el diccionario de la petición:
+
+```python
+data_template = {
+    "url": "",
+    "shots": 10000,
+    "provider": ["ibm"],
+    "policy": "Islas_Cuanticas_Edges",
+    "placement_levels": PLACEMENT_LEVELS,
+}
+```
+
+El scheduler mantiene una cola separada para cada combinación solicitada, para
+que circuitos de configuraciones diferentes no se mezclen. Los valores válidos
+son cualquier lista no vacía y sin repetidos de `[1, 2, 3]`. Si se omite
+`placement_levels`, el comportamiento existente no cambia. Reinicia el
+scheduler después de actualizar su código.
+
+Los scripts `Test/scheduler-async_IslasEdges.py`,
+`Test/scheduler-async_IslasEdges_Short.py` y
+`Test/scheduler-async_IslasEdges_ShortAWS.py` ya exponen esta variable. Los
+scripts asíncronos siguen enviando todos los circuitos en paralelo.
+Para ejecutarlos, reinicia el scheduler y usa el script de prueba que ya te
+funcionaba; solo cambia `PLACEMENT_LEVELS` y ejecuta ese archivo.
+
+En IBM, una colocación solo se usa como `initial_layout` si tiene exactamente
+un índice físico entero, único y dentro del rango del backend por qubit lógico.
+Si el algoritmo genera un layout inválido, por ejemplo un objeto no entero, el
+scheduler lo informa y transpila sin layout inicial para que el trabajo aún
+pueda ejecutarse. El CSV de campaña incluye `placement_layout_applied` para
+distinguir esos casos.
+
+La búsqueda VF2 excluye antes del isomorfismo los qubits ocupados, los que
+incumplen el umbral de ruido y los que violan la distancia mínima respecto a
+circuitos ya colocados. Esto evita enumerar asignaciones que luego se
+descartarían.
+
+### Campaña secuencial de niveles de colocación
+
+El lanzador opcional `Test/ejecutar_campana_niveles.py` compara los escenarios
+por separado. Primero muestra el plan; para lanzar trabajos reales hay que
+usar `--execute` y confirmar. Cada escenario espera sus resultados antes de
+enviar el siguiente.
+
+Con el servidor y el traductor ya iniciados, primero revisa el plan sin enviar
+trabajos:
+
+```powershell
+python QCRAFT-Scheduler\Test\ejecutar_campana_niveles.py
+```
+
+Para enviar la campaña real, se requiere `--execute` y escribir `EJECUTAR`
+cuando se solicite. Por ejemplo, con 30 circuitos y 10 000 shots en los tres
+escenarios, se solicitarán 900 000 muestras lógicas (circuit-shots). Esto no
+equivale necesariamente a 900 000 shots de IBM: el scheduler puede componer
+varios circuitos en un lote y ejecutar ese lote con 10 000 shots:
+
+```powershell
+python QCRAFT-Scheduler\Test\ejecutar_campana_niveles.py --execute
+```
+
+Los resultados por circuito y las métricas por lote IBM se guardan en CSV con
+una marca de tiempo. Las métricas incluyen profundidad, tiempo de transpilation,
+tiempo de ejecución, operaciones de dos qubits y `swap_gate_count` (puertas
+`swap` explícitas que permanecen en el circuito transpiled). IBM puede
+descomponer SWAP en puertas nativas; en ese caso, ese campo puede ser cero y
+`two_qubit_gate_count` junto con `operation_counts` describe las puertas
+transpiled sin afirmar una reconstrucción de SWAPs descompuestos.
+El scheduler también conserva el detalle de los lotes en
+`resultados_metricas_ibm.jsonl`.
+Ejecuta la campaña con el scheduler sin otras campañas activas, para que los
+lotes y sus métricas no incluyan circuitos ajenos.
+
+Se puede elegir solo un subconjunto o cambiar su orden, por ejemplo:
+
+```powershell
+python QCRAFT-Scheduler\Test\ejecutar_campana_niveles.py --scenarios niveles_2_3,niveles_1_2_3
+```
+
+Para credenciales, el scheduler admite una cuenta IBM ya guardada con Qiskit
+Runtime o las variables de entorno `IBM_QUANTUM_TOKEN` e
+`IBM_QUANTUM_INSTANCE`. No pongas tokens en el script.
 import requests
 
 data = {

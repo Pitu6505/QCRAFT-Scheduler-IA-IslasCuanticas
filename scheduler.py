@@ -19,6 +19,26 @@ from pymongo import MongoClient
 from bson.json_util import dumps
 from dotenv import load_dotenv
 
+
+def placement_policy_name(policy: str, placement_levels):
+    if placement_levels is None:
+        return policy
+    if policy != 'Islas_Cuanticas_Edges':
+        raise ValueError(
+            "placement_levels solo se puede usar con la política "
+            "'Islas_Cuanticas_Edges'."
+        )
+    if (
+        not isinstance(placement_levels, list)
+        or not placement_levels
+        or any(type(level) is not int or level not in {1, 2, 3} for level in placement_levels)
+        or len(set(placement_levels)) != len(placement_levels)
+    ):
+        raise ValueError("placement_levels debe ser una lista sin repetir de niveles 1, 2 y/o 3.")
+    levels = sorted(placement_levels)
+    return "Islas_Cuanticas_Edges_Niveles_" + "_".join(map(str, levels))
+
+
 class Scheduler:
     """
     Class to manage the petitions of quantum circuit scheduling.
@@ -157,7 +177,17 @@ class Scheduler:
         #        if list(line_dict.keys())[0] not in ids:
         #            file.write(line)        
 
-    def select_policy(self, url:str, num_qubits:int, shots:int, user:int, circuit_name:str, maxDepth:int, provider:str, policy:str) -> None:
+    def select_policy(
+        self,
+        url: str,
+        num_qubits: int,
+        shots: int,
+        user: int,
+        circuit_name: str,
+        maxDepth: int,
+        provider: str,
+        policy: str,
+    ) -> None:
         """
         Select the policy to execute the circuit and send a post request to the policy service
 
@@ -172,7 +202,8 @@ class Scheduler:
             policy (str): The policy to execute the circuit
         """
         data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider , "Iteracion": 1} # Modificaco aqui la cola para la prioridad 
-        requests.post(self.policy_service+policy, json=data)
+        response = requests.post(self.policy_service + policy, json=data)
+        response.raise_for_status()
         
 
     def unschedule_route(self) -> tuple:
@@ -246,6 +277,13 @@ class Scheduler:
             #return "Policy must be specified", 400
         else:
             policy = request.json['policy']     
+        try:
+            policy = placement_policy_name(
+                policy,
+                request.json.get('placement_levels'),
+            )
+        except ValueError as error:
+            return str(error), 400
 
         url =  request.json['url']
         
@@ -364,6 +402,13 @@ class Scheduler:
             #return "Policy must be specified", 400
         else:
             policy = request.json['policy']
+        try:
+            policy = placement_policy_name(
+                policy,
+                request.json.get('placement_levels'),
+            )
+        except ValueError as error:
+            return str(error), 400
         url = request.json['url']
         shots = request.json['shots']
 

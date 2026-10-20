@@ -39,16 +39,33 @@ def find_isomorphic_subgraph(
 ):
     if noise_threshold is None:
         noise_threshold = MAX_NOISE_THRESHOLD
-    
-    for nodes_subset in nx.algorithms.components.connected_components(G):
+
+    unavailable_nodes = set(used_nodes)
+    if used_nodes:
+        nodes_within_distance = nx.multi_source_dijkstra_path_length(
+            G,
+            used_nodes,
+            cutoff=min_circuit_distance,
+            weight=None,
+        )
+        unavailable_nodes.update(nodes_within_distance)
+
+    eligible_nodes = [
+        node
+        for node in G
+        if node not in unavailable_nodes
+        and G.nodes[node].get("noise", 0) <= noise_threshold
+    ]
+    eligible_graph = G.subgraph(eligible_nodes)
+
+    for nodes_subset in nx.algorithms.components.connected_components(eligible_graph):
         if len(nodes_subset) < logical_graph.number_of_nodes():
             continue
-        subgraph = G.subgraph(nodes_subset)
+        subgraph = eligible_graph.subgraph(nodes_subset)
 
         matcher = isomorphism.GraphMatcher(
             subgraph,
             logical_graph,
-            node_match=lambda n1, n2: n1.get("noise", 0) <= noise_threshold
         )
         for match in matcher.subgraph_isomorphisms_iter():
             logical_to_physical = {
@@ -56,9 +73,7 @@ def find_isomorphic_subgraph(
                 for physical_node, logical_node in match.items()
             }
             candidate = [logical_to_physical[node] for node in logical_graph.nodes]
-            if all(G.nodes[n]['noise'] <= noise_threshold for n in candidate):
-                if is_far_enough(G, candidate, used_nodes, min_circuit_distance):
-                    return candidate
+            return candidate
     return None
 
 def bfs_connected_groups(
