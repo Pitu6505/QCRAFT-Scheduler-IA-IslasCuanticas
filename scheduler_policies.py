@@ -234,7 +234,8 @@ class SchedulerPolicies:
                         max(shots),
                         [url[3] for url in urls],
                         qb,
-                        [url[4] for url in urls]
+                        [url[4] for url in urls],
+                        None
                     )
             else:
                 counts = runAWS_save(
@@ -587,7 +588,10 @@ class SchedulerPolicies:
             elapsed_time = end_time - start_time
             print(f"Tiempo de ejecución de send_edges: {elapsed_time:.6f} segundos")
 
-            with open("./resultados/SalidaIslasCuanticasEdges.txt", 'a') as file:
+            results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultados")
+            os.makedirs(results_dir, exist_ok=True)
+            results_path = os.path.join(results_dir, "SalidaIslasCuanticasEdges.txt")
+            with open(results_path, 'a') as file:
                 file.write("Cola Formateada con edges:")
                 file.write(str(formatted_queue))
                 file.write("\n")

@@ -19,13 +19,15 @@ def calculate_dynamic_noise_threshold(G, percentile=Porcentaje_util):
     return dynamic_threshold
 
 def is_far_enough(G, candidate_nodes, used_nodes):
-    for u in candidate_nodes:
-        for v in used_nodes:
-            try:
-                if nx.shortest_path_length(G, u, v) <= MIN_CIRCUIT_DISTANCE:
-                    return False
-            except nx.NetworkXNoPath:
-                continue
+    if MIN_CIRCUIT_DISTANCE < 0:
+        return True
+
+    for node in candidate_nodes:
+        nearby_nodes = nx.single_source_shortest_path_length(
+            G, node, cutoff=MIN_CIRCUIT_DISTANCE
+        )
+        if not used_nodes.isdisjoint(nearby_nodes):
+            return False
     return True
 
 def find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold=None):
@@ -129,14 +131,15 @@ def place_circuits_logical(G, circuits, max_time_seconds=30):
             logical_graph = nx.Graph()
             logical_graph.add_nodes_from(range(circuit['size']))  # Añadir TODOS los nodos primero
             logical_graph.add_edges_from(circuit['edges'])
-            mapping = find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold)
+            if logical_graph.number_of_nodes() and nx.is_connected(logical_graph):
+                mapping = find_isomorphic_subgraph(G, logical_graph, used_nodes, noise_threshold)
 
-            if mapping:
-                used_nodes.update(mapping)
-                placed.append((circuit['id'], mapping))
-                continue
-            else:
-                print(f"⚠️ No se encontró isomorfismo para circuito {circuit['id']} (size={circuit['size']}), usando BFS optimizado")
+                if mapping:
+                    used_nodes.update(mapping)
+                    placed.append((circuit['id'], mapping))
+                    continue
+                else:
+                    print(f"⚠️ No se encontró isomorfismo para circuito {circuit['id']} (size={circuit['size']}), usando BFS optimizado")
         elif 'edges' in circuit and circuit['edges'] and circuit['size'] > 4:
             # Circuitos grandes: saltar isomorfismo directamente (muy costoso)
             pass  # Continuar al mapeo estándar
