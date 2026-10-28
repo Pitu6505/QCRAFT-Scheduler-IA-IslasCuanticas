@@ -1,0 +1,2 @@
+Suma de qBits:105
+Tiempo Ejecucion:0.015625
