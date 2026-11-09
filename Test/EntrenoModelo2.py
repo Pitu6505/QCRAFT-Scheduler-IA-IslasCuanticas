@@ -3,7 +3,7 @@ import asyncio
 import random
 
 url_api = 'http://localhost:8082/circuit'
-NUM_TANDAS = 20
+NUM_TANDAS = 50
 
 URL_ESPIA = "https://raw.githubusercontent.com/Pitu6505/QCRAFT-Scheduler-IA-IslasCuanticas/refs/heads/2%C2%BAModelo/circuits-code/IBM/QASM3/espia_radar_25.qasm" 
 
