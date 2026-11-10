@@ -8,6 +8,7 @@ Ejemplo:
 import argparse
 import ast
 import csv
+import re
 import sys
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -47,10 +48,15 @@ def download(url: str) -> str:
 
 def build_circuit(code: str) -> QuantumCircuit:
     """Construye el QuantumCircuit local; nunca transpila ni lo envía a un backend."""
-    if "OPENQASM 3.0" in code:
+    qasm_header = re.search(r"(?m)^\s*OPENQASM\s+([23])(?:\.0)?\s*;", code)
+    if qasm_header and qasm_header.group(1) == "3":
         from qiskit import qasm3
 
         return qasm3.loads(code)
+    if qasm_header and qasm_header.group(1) == "2":
+        from qiskit import qasm2
+
+        return qasm2.loads(code, custom_instructions=qasm2.LEGACY_CUSTOM_INSTRUCTIONS)
 
     compile(code.replace("return circuit", ""), "<remote-circuit>", "exec")
     local_vars = {}

@@ -6,8 +6,10 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # ==========================================
 # 1. CARGA DEL GRAFO TOPOLÓGICO
@@ -17,7 +19,7 @@ G = nx.grid_2d_graph(13, 12)
 G = nx.convert_node_labels_to_integers(G)
 
 # Configuración del entrenamiento.
-USAR_DATOS_SINTETICOS = False  # Cambia a True si deseas aumentar los datos con ruido térmico NISQ
+USAR_DATOS_SINTETICOS = True  # Cambia a True si deseas aumentar los datos con ruido térmico NISQ
 MULTIPLICADOR_SINTETICO = 8
 RUIDO_SINTETICO_STD = 0.015
 
@@ -189,7 +191,112 @@ print("\n--- REPORTE MODELO 2 (IDENTIFICACIÓN DE FIRMA) ---")
 print(classification_report(y_test_alg, pred_algoritmo))
 
 # ==========================================
-# 7. SIMULACIÓN DE PIPELINE EN PRODUCCIÓN
+# 7. MATRICES DE CONFUSIÓN E IMPORTANCIA
+# ==========================================
+print("\nGenerating confusion matrices and feature-importance figures...")
+directorio_salida = Path(__file__).resolve().parent
+
+clases_ataque = [0, 1]
+etiquetas_ataque = ["Normal", "Attack"]
+matriz_ataque = confusion_matrix(
+    y_test_atq,
+    pred_ataque,
+    labels=clases_ataque,
+)
+
+fig, ax = plt.subplots(figsize=(6, 5))
+sns.heatmap(
+    matriz_ataque,
+    annot=True,
+    fmt="d",
+    cmap=sns.light_palette("navy", as_cmap=True),
+    cbar=False,
+    ax=ax,
+    xticklabels=etiquetas_ataque,
+    yticklabels=etiquetas_ataque,
+    annot_kws={"size": 14, "weight": "bold"},
+)
+ax.set_xlabel("Predicted class")
+ax.set_ylabel("Actual class")
+fig.tight_layout()
+fig.savefig(
+    directorio_salida / "matriz_confusion_ataque.pdf",
+    dpi=300,
+    bbox_inches="tight",
+)
+plt.close(fig)
+
+clases_algoritmo = clf_algoritmo.classes_
+matriz_algoritmo = confusion_matrix(
+    y_test_alg,
+    pred_algoritmo,
+    labels=clases_algoritmo,
+)
+
+fig, ax = plt.subplots(
+    figsize=(max(7, len(clases_algoritmo) * 1.2), 6)
+)
+sns.heatmap(
+    matriz_algoritmo,
+    annot=True,
+    fmt="d",
+    cmap=sns.light_palette("navy", as_cmap=True),
+    cbar=False,
+    ax=ax,
+    xticklabels=clases_algoritmo,
+    yticklabels=clases_algoritmo,
+    annot_kws={"size": 12, "weight": "bold"},
+)
+ax.set_xlabel("Predicted algorithm")
+ax.set_ylabel("Actual algorithm")
+plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+fig.tight_layout()
+fig.savefig(
+    directorio_salida / "matriz_confusion_algoritmo.pdf",
+    dpi=300,
+    bbox_inches="tight",
+)
+plt.close(fig)
+
+feature_names = [
+    "Sentinel v0",
+    "Sentinel v1",
+    "Sentinel v2",
+    "Sentinel v3",
+    "Sentinel v4",
+]
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+for ax, model, model_name in (
+    (axes[0], clf_ataque, "Attack detector"),
+    (axes[1], clf_algoritmo, "Algorithm classifier"),
+):
+    importances = model.feature_importances_
+    indices = np.argsort(importances)
+    ax.barh(
+        np.array(feature_names)[indices],
+        importances[indices],
+        color=sns.color_palette("magma", n_colors=len(feature_names)),
+    )
+    ax.set_xlabel(f"{model_name} feature importance")
+    ax.set_ylabel("Feature")
+    ax.grid(axis="x", linestyle="--", alpha=0.5)
+
+fig.tight_layout()
+fig.savefig(
+    directorio_salida / "importancia_caracteristicas.pdf",
+    dpi=300,
+    bbox_inches="tight",
+)
+plt.close(fig)
+print(
+    "Figures saved to "
+    f"{directorio_salida}: matriz_confusion_ataque.pdf, "
+    "matriz_confusion_algoritmo.pdf, importancia_caracteristicas.pdf"
+)
+
+# ==========================================
+# 8. SIMULACIÓN DE PIPELINE EN PRODUCCIÓN
 # ==========================================
 print("\n🚀 SIMULACIÓN DE LA TUBERÍA EN TIEMPO REAL:")
 print("-" * 50)

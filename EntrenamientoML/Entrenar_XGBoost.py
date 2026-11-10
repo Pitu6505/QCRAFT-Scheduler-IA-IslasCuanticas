@@ -1,24 +1,34 @@
 import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.multioutput import ClassifierChain
-from sklearn.metrics import classification_report, accuracy_score, multilabel_confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    multilabel_confusion_matrix,
+    precision_score,
+)
 from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def cargar_y_aumentar_dataset(ruta_json, factor_aumento=5, std_ruido=0.008):
-    """
-    Carga el dataset real y genera muestras sintéticas añadiendo ruido gaussiano
-    controlado a los vectores de error 25D.
-    """
+USAR_DATOS_SINTETICOS = True
+FACTOR_AUMENTO_SINTETICO = 5
+RUIDO_SINTETICO_STD = 0.008
+
+
+def cargar_dataset(ruta_json):
+    """Carga las muestras originales del dataset."""
     X_originales = []
     densidad_originales = []
     y_originales = []
+    layouts_originales = []
+    victimas_originales = []
 
-    # 1. Carga de datos reales
     with open(ruta_json, 'r') as f:
         for linea in f:
             if not linea.strip():
@@ -26,37 +36,61 @@ def cargar_y_aumentar_dataset(ruta_json, factor_aumento=5, std_ruido=0.008):
             datos = json.loads(linea)
             X_originales.append(datos['vector_25d'])
             densidad_originales.append(datos['total_circuitos'])
-            nombres_limpios = [n.replace('.qasm', '') for n in datos['victimas_concurrentes']]
-            y_originales.append(nombres_limpios)
+            layouts_originales.append(datos.get('layout_global', []))
+            victimas = [
+                nombre.replace('.qasm', '')
+                for nombre in datos['victimas_concurrentes']
+            ]
+            victimas_originales.append(victimas)
+            familias = []
+            for nombre in victimas:
+                familia = nombre.split('_indep_qiskit_', 1)[0]
+                if familia.startswith('grover-'):
+                    familia = 'grover'
+                familias.append(familia)
+            y_originales.append(familias)
 
+    return (
+        X_originales,
+        densidad_originales,
+        y_originales,
+        layouts_originales,
+        victimas_originales,
+        len(X_originales),
+    )
+
+
+def aumentar_datos_entrenamiento(X_train, y_train, factor_aumento=5, std_ruido=0.008):
+    """Añade ruido a los 25 radares de entrenamiento, manteniendo las etiquetas."""
+    if factor_aumento < 1:
+        raise ValueError("factor_aumento debe ser al menos 1")
+
+    rng = np.random.default_rng(42)
     X_aug = []
-    densidad_aug = []
     y_aug = []
 
-    # 2. Generación sintética
-    for vec, dens, label in zip(X_originales, densidad_originales, y_originales):
-        # Muestra real original
-        X_aug.append(vec)
-        densidad_aug.append(dens)
-        y_aug.append(label)
+    for vector, etiquetas in zip(X_train.to_numpy(dtype=float), y_train):
+        X_aug.append(vector)
+        y_aug.append(etiquetas)
 
-        # Copias sintéticas con variación gaussiana
         for _ in range(factor_aumento - 1):
-            ruido = np.random.normal(0, std_ruido, size=len(vec))
-            vec_sintetico = np.clip(np.array(vec) + ruido, 0.0, 1.0).round(4).tolist()
-            
-            X_aug.append(vec_sintetico)
-            densidad_aug.append(dens)
-            y_aug.append(label)
+            vector_sintetico = vector.copy()
+            ruido = rng.normal(0, std_ruido, size=25)
+            vector_sintetico[:25] = np.clip(
+                vector_sintetico[:25] + ruido, 0.0, 1.0
+            ).round(4)
+            X_aug.append(vector_sintetico)
+            y_aug.append(etiquetas)
 
-    return X_aug, densidad_aug, y_aug, len(X_originales)
+    return (
+        pd.DataFrame(X_aug, columns=X_train.columns),
+        np.asarray(y_aug),
+    )
 
 # --- INICIO DEL FLUJO ---
-print("⚙️ Cargando y aumentando dataset con física sintética...")
-X_raw, densidad_raw, y_raw, n_reales = cargar_y_aumentar_dataset(
-    "dataset_radar_distribuido.json", 
-    factor_aumento=5,   # Multiplica x5 las muestras (245 -> ~1225)
-    std_ruido=0.008     # Varianza equivalente a ~1000-4096 shots
+print("Loading dataset...")
+X_raw, densidad_raw, y_raw, layouts_raw, victimas_raw, n_reales = cargar_dataset(
+    "dataset_radar_distribuido.json"
 )
 
 # 3. Construcción del DataFrame
@@ -68,41 +102,79 @@ mlb = MultiLabelBinarizer()
 y = mlb.fit_transform(y_raw)
 clases = mlb.classes_
 
-print(f"📊 Muestras originales: {n_reales} | Muestras tras Data Augmentation: {len(X)}")
-print(f"🎯 Clases detectadas: {', '.join(clases)}")
+print(f"Detected families: {', '.join(clases)}")
 
-# 5. División de datos (Estratificada por distribución multi-etiqueta)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# 5. Split before augmentation to prevent synthetic copies entering the test set
+X_train, X_test, y_train, y_test, layouts_train, layouts_test, victimas_train, victimas_test = train_test_split(
+    X,
+    y,
+    layouts_raw,
+    victimas_raw,
+    test_size=0.2,
+    random_state=42,
+)
+num_entrenamiento_original = len(X_train)
+if USAR_DATOS_SINTETICOS:
+    X_train, y_train = aumentar_datos_entrenamiento(
+        X_train,
+        y_train,
+        factor_aumento=FACTOR_AUMENTO_SINTETICO,
+        std_ruido=RUIDO_SINTETICO_STD,
+    )
+    estado_aumento = "synthetic augmentation enabled"
+else:
+    estado_aumento = "synthetic augmentation disabled"
+
+print(
+    f"Original samples: {n_reales} | "
+    f"Training samples: {num_entrenamiento_original} -> {len(X_train)} "
+    f"({estado_aumento}) | Test samples: {len(X_test)}"
+)
 
 # 6. Configuración regularizada de XGBoost
-print("\n🧠 Entrenando ClassifierChain con XGBoost regularizado...")
+print("\nTraining regularized XGBoost ClassifierChain...")
 xgb_base = XGBClassifier(
     objective='binary:logistic',
     eval_metric='logloss',
     n_estimators=100,
-    learning_rate=0.03,      # Gradiente moderado para evitar memorización
-    max_depth=4,             # Control de profundidad de árbol
+    learning_rate=0.03,          # Moderate learning rate to reduce overfitting
+    max_depth=4,                 # Limit tree depth
     subsample=0.8,
     colsample_bytree=0.8,
-    reg_alpha=0.1,           # Regularización L1
-    reg_lambda=1.2,          # Regularización L2
+    reg_alpha=0.1,               # L1 regularization
+    reg_lambda=1.2,              # L2 regularization
     random_state=42
 )
 
-# ClassifierChain pasa las predicciones de una clase como características de la siguiente
+# ClassifierChain passes earlier class predictions as features to later classifiers.
 modelo_crosstalk = ClassifierChain(xgb_base, order='random', random_state=42)
 modelo_crosstalk.fit(X_train, y_train)
 
 # 7. Evaluación
 y_pred = modelo_crosstalk.predict(X_test)
 exact_acc = accuracy_score(y_test, y_pred)
+precision_macro = precision_score(y_test, y_pred, average='macro', zero_division=0)
 
-print("\n✅ Reporte de Clasificación (Dataset Aumentado):\n")
+print("\nClassification report:\n")
 print(classification_report(y_test, y_pred, target_names=clases, zero_division=0))
-print(f"🎯 Exact Match Accuracy (Acierto Conjunto Perfecto): {exact_acc:.2%}")
+print(f"Macro precision (average across families): {precision_macro:.2%}")
+print(f"Exact-match accuracy (all labels correct): {exact_acc:.2%}")
+
+# Save the trained model together with the label encoder and input feature order.
+ruta_modelo = Path(__file__).resolve().parent / "modelo_crosstalk_familias.joblib"
+joblib.dump(
+    {
+        "model": modelo_crosstalk,
+        "label_binarizer": mlb,
+        "feature_names": X.columns.tolist(),
+        "families": clases.tolist(),
+    },
+    ruta_modelo,
+)
+print(f"Trained model saved to: {ruta_modelo}")
 
 # 8. Prueba de inferencia a ciegas en test
-print("\n🔍 Prueba de Inferencia a Ciegas sobre muestra sintética de validación:")
+print("\nBlind inference on a test sample:")
 idx_sample = 0
 ejemplo = X_test.iloc[[idx_sample]]
 pred_bin = modelo_crosstalk.predict(ejemplo)[0]
@@ -110,15 +182,17 @@ pred_bin = modelo_crosstalk.predict(ejemplo)[0]
 reales_names = mlb.inverse_transform(y_test[[idx_sample]])[0]
 pred_names = mlb.inverse_transform(np.array([pred_bin]))[0]
 
-print(f" - Algoritmos reales ejecutándose: {reales_names}")
-print(f" - El modelo deduce que son:      {pred_names}")
+print(f" - Actual families:    {reales_names}")
+print(f" - Predicted families: {pred_names}")
 
 # ==============================================================================
 # 1. MATRIZ DE CONFUSIÓN MULTI-ETIQUETA (Eficacia de Detección por Algoritmo)
 # ==============================================================================
 mcm = multilabel_confusion_matrix(y_test, y_pred)
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-axes = axes.ravel()
+n_columnas = 2
+n_filas = (len(clases) + n_columnas - 1) // n_columnas
+fig, axes = plt.subplots(n_filas, n_columnas, figsize=(12, 5 * n_filas))
+axes = np.atleast_1d(axes).ravel()
 
 # Paleta de colores científicos
 cmap = sns.light_palette("navy", as_cmap=True)
@@ -126,14 +200,15 @@ cmap = sns.light_palette("navy", as_cmap=True)
 for i, (matrix, name) in enumerate(zip(mcm, clases)):
     sns.heatmap(matrix, annot=True, fmt='d', cmap=cmap, cbar=False, ax=axes[i],
                 annot_kws={"size": 14, "weight": "bold"},
-                xticklabels=['Ausente (Pred)', 'Presente (Pred)'],
-                yticklabels=['Ausente (Real)', 'Presente (Real)'])
-    axes[i].set_title(f'Detector: {name}', fontsize=12, pad=10)
-    axes[i].set_xlabel('Predicción de XGBoost', fontsize=10)
-    axes[i].set_ylabel('Verdad Fundamental', fontsize=10)
+                xticklabels=['Absent', 'Present'],
+                yticklabels=['Absent', 'Present'])
+    axes[i].set_xlabel(f'Predicted {name}', fontsize=10)
+    axes[i].set_ylabel(f'Actual {name}', fontsize=10)
 
-plt.suptitle('Matrices de Confusión de Ataque de Canal Lateral (Crosstalk)', fontsize=16, weight='bold')
-plt.tight_layout()
+for ax in axes[len(clases):]:
+    ax.set_visible(False)
+
+fig.tight_layout()
 plt.savefig('matriz_confusion_crosstalk.pdf', dpi=300, bbox_inches='tight') # Formato PDF para LaTeX
 plt.show()
 
@@ -143,7 +218,7 @@ plt.show()
 # Extraemos el peso (Information Gain) de las características en la cadena XGBoost
 # Como son 4 modelos en cadena, promediamos la importancia de las 26 variables originales
 importancias = np.mean([est.feature_importances_[:26] for est in modelo_crosstalk.estimators_], axis=0)
-nombres_features = [f'Centinela v{i%5} (Zona {i//5})' for i in range(25)] + ['Densidad Lógica (Qubits)']
+nombres_features = [f'Sentinel v{i%5} (Zone {i//5})' for i in range(25)] + ['Logical qubit density']
 
 # Ordenamos de mayor a menor relevancia
 indices = np.argsort(importancias)[::-1]
@@ -152,9 +227,8 @@ nombres_ordenados = [nombres_features[i] for i in indices]
 
 plt.figure(figsize=(12, 8))
 sns.barplot(x=importancias_ordenadas[:12], y=nombres_ordenados[:12], palette='magma')
-plt.title('Top 12 Nodos Topológicos con Mayor Fuga de Información (Information Gain)', fontsize=14, weight='bold')
-plt.xlabel('Relevancia en la Clasificación (Puntuación XGBoost)', fontsize=12)
-plt.ylabel('Característica', fontsize=12)
+plt.xlabel('Feature importance (XGBoost)', fontsize=12)
+plt.ylabel('Feature', fontsize=12)
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.tight_layout()
 plt.savefig('importancia_radares.pdf', dpi=300, bbox_inches='tight')
@@ -169,7 +243,7 @@ import matplotlib.animation as animation
 # ==============================================================================
 # 3. ANIMACIÓN DEL MAPA DE CALOR TOPOLÓGICO (GIF - 10 PRUEBAS)
 # ==============================================================================
-print("\n🎬 Generando animación topológica (GIF) de 10 pruebas a ciegas...")
+print("\nGenerating topological heatmap animation (10 test samples)...")
 
 # 1. Reconstruimos la topología base y extraemos coordenadas reales
 G_grid = nx.grid_2d_graph(13, 12)
@@ -187,14 +261,24 @@ etiquetas = {nodo: nodo for nodo in sentinelas_idx}
 # 2. Seleccionamos aleatoriamente 10 muestras de test
 num_frames = 10
 np.random.seed(42) # Fijo para repetibilidad, puedes quitarlo
-indices_prueba = np.random.choice(len(X_test), num_frames, replace=False)
+indices_prueba = np.random.choice(
+    len(X_test), min(num_frames, len(X_test)), replace=False
+)
 
 # Normalizador global basado en los datos de esas 10 muestras
 todas_las_tasas = X_test.iloc[indices_prueba].values[:, :25].flatten()
 norm = mcolors.Normalize(vmin=min(todas_las_tasas), vmax=max(todas_las_tasas))
 cmap_termico = cm.get_cmap('magma')
 
-fig, ax = plt.subplots(figsize=(10, 8))
+fig, ax = plt.subplots(figsize=(12, 8))
+colores_victimas = {
+    'grover': '#D4A017',
+    'qaoa': '#2CA02C',
+    'qft': '#C23B9A',
+    'vqe': '#17A2B8',
+}
+colores_fondo = '#E0E0E0'
+fig.subplots_adjust(right=0.70, bottom=0.16)
 
 # 3. Función de actualización para cada fotograma del GIF
 def update(frame):
@@ -202,14 +286,42 @@ def update(frame):
     idx = indices_prueba[frame]
     ejemplo = X_test.iloc[[idx]]
     vector_termico = ejemplo.values[0][:25]
+    layout_actual = layouts_test[idx]
+    victimas_actuales = victimas_test[idx]
+
+    nodos_circuitos = [
+        nodo for nodo in layout_actual if isinstance(nodo, int)
+    ]
+    nodos_por_victima = []
+    puntero = 0
+    for nombre in victimas_actuales:
+        try:
+            tamano_circuito = int(nombre.rsplit('_', 1)[1])
+        except (IndexError, ValueError) as error:
+            raise ValueError(
+                f"Cannot determine qubit count for victim circuit: {nombre}"
+            ) from error
+        nodos_por_victima.append(
+            (
+                nombre,
+                nodos_circuitos[puntero:puntero + tamano_circuito],
+            )
+        )
+        puntero += tamano_circuito
+
+    if puntero != len(nodos_circuitos):
+        raise ValueError(
+            "The victim circuit sizes do not match the physical layout "
+            f"for test sample {idx}."
+        )
     
     # Inferencia
     pred_bin = modelo_crosstalk.predict(ejemplo)[0]
     algoritmos_predichos = mlb.inverse_transform(np.array([pred_bin]))[0]
     algoritmos_reales = mlb.inverse_transform(y_test[[idx]])[0]
     
-    pred_str = ", ".join(algoritmos_predichos) if algoritmos_predichos else "Ninguno"
-    real_str = ", ".join(algoritmos_reales) if algoritmos_reales else "Ninguno"
+    pred_str = ", ".join(algoritmos_predichos) if algoritmos_predichos else "None"
+    real_str = ", ".join(algoritmos_reales) if algoritmos_reales else "None"
 
     # Asignación de colores
     node_colors = []
@@ -219,16 +331,56 @@ def update(frame):
             node_colors.append(cmap_termico(norm(vector_termico[vector_idx])))
             vector_idx += 1
         else:
-            node_colors.append('#E0E0E0') # Gris claro para víctimas y huecos
+            color_victima = colores_fondo
+            for nombre, nodos in nodos_por_victima:
+                if nodo in nodos:
+                    familia = nombre.split('_indep_qiskit_', 1)[0]
+                    if familia.startswith('grover-'):
+                        familia = 'grover'
+                    color_victima = colores_victimas.get(
+                        familia, colores_fondo
+                    )
+                    break
+            node_colors.append(color_victima)
 
     # Dibujado del grafo
     nx.draw_networkx_edges(G_topology, pos, alpha=0.3, edge_color='gray', ax=ax)
     nx.draw_networkx_nodes(G_topology, pos, node_size=350, node_color=node_colors, edgecolors='black', linewidths=0.5, ax=ax)
     nx.draw_networkx_labels(G_topology, pos, labels=etiquetas, font_size=7, font_color='white', ax=ax)
+
+    leyenda_elementos = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker='o',
+            color='w',
+            markerfacecolor=color,
+            markeredgecolor='black',
+            markersize=9,
+            label=family.upper(),
+        )
+        for family, color in colores_victimas.items()
+    ]
+    leyenda_elementos.append(
+        plt.Line2D(
+            [0],
+            [0],
+            marker='o',
+            color='w',
+            markerfacecolor=colores_fondo,
+            markeredgecolor='black',
+            markersize=9,
+            label='Unused qubit',
+        )
+    )
+    ax.legend(
+        handles=leyenda_elementos,
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1.0),
+        framealpha=0.9,
+    )
     
-    # Textos dinámicos
-    ax.set_title(f'Radar Cuántico: Inspección {frame + 1}/10', fontsize=16, weight='bold', pad=10)
-    texto = f"Verdad Fundamental: {real_str}\nPredicción XGBoost: {pred_str}"
+    texto = f"Actual: {real_str}\nPredicted: {pred_str}"
     
     # Colorear el borde del texto: Verde si acierta todo, Rojo si falla algo
     borde_color = 'green' if set(algoritmos_predichos) == set(algoritmos_reales) else 'red'
@@ -238,16 +390,19 @@ def update(frame):
     ax.axis('off')
 
 # 4. Compilación y exportación de la animación
-ani = animation.FuncAnimation(fig, update, frames=num_frames, interval=2000, repeat=True)
+ani = animation.FuncAnimation(
+    fig, update, frames=len(indices_prueba), interval=2000, repeat=True
+)
 
 # Barra de color estática
 sm = plt.cm.ScalarMappable(cmap=cmap_termico, norm=norm)
-cbar = plt.colorbar(sm, ax=ax, shrink=0.7, pad=0.05)
-cbar.set_label('Tasa de Error Cuántico', rotation=270, labelpad=20)
+cax = fig.add_axes([0.92, 0.22, 0.02, 0.56])
+cbar = fig.colorbar(sm, cax=cax)
+cbar.set_label('Quantum error rate', rotation=270, labelpad=20)
 
 # Guarda el GIF (Requiere tener la librería 'pillow' instalada: pip install pillow)
 ani.save('auditoria_crosstalk_animada.gif', writer='pillow', dpi=150)
-print("✅ Animación guardada como 'auditoria_crosstalk_animada.gif'")
+print("Animation saved as 'auditoria_crosstalk_animada.gif'")
 plt.close()
 
 # import networkx as nx
