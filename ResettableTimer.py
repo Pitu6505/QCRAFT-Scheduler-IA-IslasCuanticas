@@ -7,7 +7,7 @@ class ResettableTimer:
 
     Methods
     -------
-    callback_wrapper()
+    callback_wrapper(generation)
         Wrapper for the callback function
 
     start()
@@ -37,24 +37,48 @@ class ResettableTimer:
         """
         self.timeout = timeout
         self.callback = callback
-
-        self.timer = Timer(self.timeout, self.callback_wrapper)
+        self._generation = 0
+        self._stopped = True
+        self.timer = Timer(
+            self.timeout,
+            self.callback_wrapper,
+            args=(self._generation,),
+        )
         self.lock = Lock()
 
-    def callback_wrapper(self) -> None:
+    def _schedule_locked(self) -> None:
+        self._generation += 1
+        self._stopped = False
+        self.timer = Timer(
+            self.timeout,
+            self.callback_wrapper,
+            args=(self._generation,),
+        )
+        self.timer.start()
+
+    def callback_wrapper(self, generation: int) -> None:
         """
-        Wrapper for the callback function. It executes the callback function and resets the timer
+        Executes the callback and rearms only if the callback did not reset or stop it.
         """
+        with self.lock:
+            if generation != self._generation:
+                return
+
         self.callback()
-        self.reset()
+
+        with self.lock:
+            if generation == self._generation:
+                self._schedule_locked()
 
     def start(self) -> None:
         """
         Start the timer if it is not already running
         """
         with self.lock:
-            if not self.timer.is_alive():
-                self.timer.start()
+            if self._stopped or not self.timer.is_alive():
+                if self.timer.is_alive():
+                    self.timer.cancel()
+                self._schedule_locked()
 
     def reset(self) -> None:
         """
@@ -63,8 +87,7 @@ class ResettableTimer:
         with self.lock:
             if self.timer.is_alive():
                 self.timer.cancel()
-            self.timer = Timer(self.timeout, self.callback_wrapper)
-            self.timer.start()
+            self._schedule_locked()
 
 
     def execute_and_reset(self) -> None:
@@ -73,13 +96,21 @@ class ResettableTimer:
         """
         with self.lock:
             if self.timer.is_alive():
-                threading.Thread(target=self.callback_wrapper).start()
+                self.timer.cancel()
+                self._generation += 1
+                generation = self._generation
+                threading.Thread(
+                    target=self.callback_wrapper,
+                    args=(generation,),
+                ).start()
 
     def stop(self) -> None:
         """
         Stop the timer if it is running
         """
         with self.lock:
+            self._stopped = True
+            self._generation += 1
             if self.timer.is_alive():
                 self.timer.cancel()
 
@@ -90,4 +121,5 @@ class ResettableTimer:
         Returns:
             bool: True if the timer is alive, False otherwise
         """
-        return self.timer.is_alive()
+        with self.lock:
+            return not self._stopped and self.timer.is_alive()

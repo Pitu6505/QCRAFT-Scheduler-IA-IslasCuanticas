@@ -114,6 +114,7 @@ class SchedulerPolicies:
 
         # Lock para evitar concurrencia en Islas Cuánticas
         self.islas_cuanticas_lock = threading.Lock()
+        self.islas_cuanticas_edges_queue_lock = threading.Lock()
 
         if os.path.exists(MODEL_PATH):
             print("Cargando modelo entrenado...")
@@ -172,12 +173,22 @@ class SchedulerPolicies:
         iteracion = request.json['Iteracion']
         sentinel_mode = request.json.get('sentinel_mode', None)
         data = (circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion, sentinel_mode)
-        self.services[service_name].queues[provider].append(data)
-        if not self.services[service_name].timers[provider].is_alive():
-            self.services[service_name].timers[provider].start()
-        n_qubits = sum(item[1] for item in self.services[service_name].queues[provider])
+        queue = self.services[service_name].queues[provider]
+        timer = self.services[service_name].timers[provider]
+        if service_name == 'Islas_Cuanticas_Edges':
+            with self.islas_cuanticas_edges_queue_lock:
+                queue.append(data)
+                if not timer.is_alive():
+                    timer.start()
+                n_qubits = sum(item[1] for item in queue)
+        else:
+            queue.append(data)
+            if not timer.is_alive():
+                timer.start()
+            n_qubits = sum(item[1] for item in queue)
+
         if  n_qubits >= self.max_qubits and (service_name != 'Optimizacion_ML' and service_name != 'Optimizacion_PD'):
-            self.services[service_name].timers[provider].execute_and_reset()
+            timer.execute_and_reset()
         return 'Data received', 200
         
     
@@ -657,7 +668,7 @@ class SchedulerPolicies:
                         [url[3] for url in urls],
                         qb, 
                         [url[4] for url in urls],
-                        layout_fisico=layout_fisico_plano  # <--- ESTO ES LO QUE FALTABA
+                        layout_fisico=layout_fisico
                     )
                 else:
                     counts = self.executeCircuitIBM.runIBM_save(
@@ -994,23 +1005,26 @@ class SchedulerPolicies:
             print("Ejecutando política de Islas Cuánticas (con edges)...")
             start_time = time.process_time()
 
-            if not queue:
-                print("⚠️ La cola está vacía, deteniendo temporizador.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
-                return
+            with self.islas_cuanticas_edges_queue_lock:
+                cola_pendiente = list(queue)
+                if not cola_pendiente:
+                    print("⚠️ La cola está vacía, deteniendo temporizador.")
+                    self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                    return
 
             # Proveedor que se esta utilizando
             print(f"Proveedor seleccionado: {provider}")
 
+            cola_ordenada = sorted(cola_pendiente, key=lambda item: item[1])
             formatted_queue = CircuitQueue()
             
             sentinel_mode_batch = None 
 
             # 📝 CAMBIO 2: Leemos la tupla de forma segura
-            for item in queue:
+            for item in cola_ordenada:
                 circuit, num_qubits, shots, user, circuit_name, maxDepth, iteracion = item[:7]
                 
-                # Solo guardamos el modo si existe y NO es None. 
+                # Solo guardamos el modo si existe y NO es None.
                 # Así las víctimas no borrarán la configuración del espía.
                 if len(item) > 7 and item[7] is not None:
                     sentinel_mode_batch = item[7]
@@ -1030,22 +1044,53 @@ class SchedulerPolicies:
             print(f" Layout físico asignado: {layout_fisico}")
 
             if not cola_procesada:
-                print(" No se han seleccionado elementos, deteniendo ejecución.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                with self.islas_cuanticas_edges_queue_lock:
+                    llegaron_nuevos = len(queue) > len(cola_pendiente)
+                    if llegaron_nuevos:
+                        print(
+                            " Llegaron nuevas solicitudes durante la asignación; "
+                            "se volverá a evaluar la cola completa."
+                        )
+                        self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
+                    else:
+                        print(
+                            " No se pudo asignar ningún circuito de la cola actual. "
+                            "Se conservará completa y se volverá a evaluar cuando "
+                            "llegue una nueva solicitud."
+                        )
+                        self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
                 return
 
             seleccionados_ids = {str(s['id']) for s in cola_procesada}
-            seleccionados_completos = [item for item in queue if str(item[3]) in seleccionados_ids]
+            cola_por_id = {
+                str(item[3]): item
+                for item in cola_pendiente
+            }
+            seleccionados_completos = [
+                cola_por_id[str(circuito['id'])]
+                for circuito in cola_procesada
+            ]
 
             # 📝 CAMBIO 4: Mantenemos la estructura de la tupla intacta para urls_for_create
             urls_for_create = [item for item in seleccionados_completos]
 
             # 📝 CAMBIO 5: Sumamos 1 a la iteración (índice 6) respetando si existe el centinela al final
-            queue[:] = [
-                item[:6] + (item[6] + 1,) + item[7:]
-                for item in queue
-                if str(item[3]) not in seleccionados_ids
-            ]
+            with self.islas_cuanticas_edges_queue_lock:
+                queue[:] = [
+                    item[:6] + (item[6] + 1,) + item[7:]
+                    for item in queue
+                    if str(item[3]) not in seleccionados_ids
+                ]
+                cola_vacia = not queue
+                if cola_vacia:
+                    print(" Cola vacía después de ejecución, deteniendo temporizador.")
+                    self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
+                else:
+                    print(
+                        f" Se ejecutan {len(urls_for_create)} circuitos; "
+                        f"{len(queue)} quedan pendientes para la siguiente iteración."
+                    )
+                    self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
 
             if urls_for_create:
                 total_qbits = sum(item[1] for item in urls_for_create)
@@ -1074,11 +1119,6 @@ class SchedulerPolicies:
                 file.write(str(elapsed_time))
                 file.write("\n")
 
-            if not queue:
-                print(" Cola vacía después de ejecución, deteniendo temporizador.")
-                self.services['Islas_Cuanticas_Edges'].timers[provider].stop()
-            else:
-                self.services['Islas_Cuanticas_Edges'].timers[provider].reset()
         
 
     def extract_edges_from_circuit(self, circuit_code: str):

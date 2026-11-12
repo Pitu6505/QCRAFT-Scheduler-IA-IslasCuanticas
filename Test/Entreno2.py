@@ -16,7 +16,7 @@ async def post_request(session, url, data):
     async with session.post(url, json=data) as response:
         return await response.text()
 
-async def main(iteraciones=50):
+async def main(iteraciones=25):
     data_template = {
         "url": "", 
         "shots": 10000,
@@ -33,8 +33,8 @@ async def main(iteraciones=50):
             print(f"🔄 ITERACIÓN {i+1} DE {iteraciones}")
             print(f"{'='*45}")
             
-            # Enviamos siempre los cuatro circuitos, cambiando aleatoriamente su orden.
-            num_circuitos_a_enviar = len(circuitos_disponibles)
+            # Enviamos entre 1 y 4 circuitos, según los disponibles.
+            num_circuitos_a_enviar = random.randint(1, min(4, len(circuitos_disponibles)))
             lote_aleatorio = random.sample(circuitos_disponibles, num_circuitos_a_enviar)
             
             print(f"🎲 Lote aleatorio: Se enviarán {num_circuitos_a_enviar} circuitos al enjambre.")
@@ -57,7 +57,7 @@ async def main(iteraciones=50):
             # Espera de seguridad si no es la última iteración
             if i < iteraciones - 1:
                 print("⏱️ Esperando 30 segundos para procesar el trabajo y aislar los lotes...")
-                await asyncio.sleep(30)  # Espera de 30 segundos para permitir que el planificador procese los trabajos
+                await asyncio.sleep(15)  # Espera de 30 segundos para permitir que el planificador procese los trabajos
                 
         print("\n🎉 Recolección masiva de datos finalizada con éxito.")
 

@@ -308,6 +308,7 @@ class executeCircuitIBM:
         user_shots = [shots] * len(circuit_names)
         script_dir = os.path.dirname(os.path.realpath(__file__))
         ids_file = os.path.join(script_dir, 'ids.txt')
+        dataset_file = os.path.join(os.path.dirname(script_dir), 'dataset_crosstalk_ml.json')
         
         # Recuperar el nombre exacto del modo para el CSV
         modo_inferido = "Global_o_Simulado"
@@ -377,12 +378,17 @@ class executeCircuitIBM:
                     "layout_global_batch": layout_fisico,  
                     "total_circuitos_concurrentes": len(layout_fisico)
                 }
-                with open("dataset_crosstalk_ml.json", "a") as f:
+                with open(dataset_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(registro) + "\n")
-                print(f"📊 ML Extraído [{circ_name}]: {tasas_error}")
+                print(f"📊 Vector de perturbación guardado en {dataset_file} [{circ_name}]: {tasas_error}")
                 
                 # Avanzamos el offset para el siguiente circuito en el layout
                 global_sentinel_idx += num_sents_isla
+        elif modo_inferido == 'crosstalk_perimetro':
+            print(
+                "⚠️ No se guardó ningún vector de perturbación: "
+                "la ejecución no contiene un registro clásico c_flag."
+            )
 
 # === EXTRACCIÓN PARA ML: MODO RADAR DISTRIBUIDO (25D) ===
         elif modo_inferido == 'radar_distribuido':

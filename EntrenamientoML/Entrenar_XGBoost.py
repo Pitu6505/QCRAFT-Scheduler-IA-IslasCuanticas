@@ -191,7 +191,7 @@ print(f" - Predicted families: {pred_names}")
 mcm = multilabel_confusion_matrix(y_test, y_pred)
 n_columnas = 2
 n_filas = (len(clases) + n_columnas - 1) // n_columnas
-fig, axes = plt.subplots(n_filas, n_columnas, figsize=(12, 5 * n_filas))
+fig, axes = plt.subplots(n_filas, n_columnas, figsize=(16, 6 * n_filas))
 axes = np.atleast_1d(axes).ravel()
 
 # Paleta de colores científicos
@@ -199,11 +199,13 @@ cmap = sns.light_palette("navy", as_cmap=True)
 
 for i, (matrix, name) in enumerate(zip(mcm, clases)):
     sns.heatmap(matrix, annot=True, fmt='d', cmap=cmap, cbar=False, ax=axes[i],
-                annot_kws={"size": 14, "weight": "bold"},
+                annot_kws={"size": 22, "weight": "bold"},
                 xticklabels=['Absent', 'Present'],
-                yticklabels=['Absent', 'Present'])
-    axes[i].set_xlabel(f'Predicted {name}', fontsize=10)
-    axes[i].set_ylabel(f'Actual {name}', fontsize=10)
+                yticklabels=['Absent', 'Present'],
+                square=True)
+    axes[i].set_xlabel(f'Predicted {name}', fontsize=19, labelpad=12)
+    axes[i].set_ylabel(f'Actual {name}', fontsize=19, labelpad=12)
+    axes[i].tick_params(axis='both', labelsize=17, pad=8)
 
 for ax in axes[len(clases):]:
     ax.set_visible(False)
@@ -225,10 +227,12 @@ indices = np.argsort(importancias)[::-1]
 importancias_ordenadas = importancias[indices]
 nombres_ordenados = [nombres_features[i] for i in indices]
 
-plt.figure(figsize=(12, 8))
+plt.figure(figsize=(15, 10))
 sns.barplot(x=importancias_ordenadas[:12], y=nombres_ordenados[:12], palette='magma')
-plt.xlabel('Feature importance (XGBoost)', fontsize=12)
-plt.ylabel('Feature', fontsize=12)
+plt.xlabel('Feature importance (XGBoost)', fontsize=19, labelpad=12)
+plt.ylabel('Feature', fontsize=19, labelpad=12)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
 plt.grid(axis='x', linestyle='--', alpha=0.7)
 plt.tight_layout()
 plt.savefig('importancia_radares.pdf', dpi=300, bbox_inches='tight')

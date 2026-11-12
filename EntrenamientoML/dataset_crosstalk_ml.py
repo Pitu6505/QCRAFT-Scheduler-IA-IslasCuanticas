@@ -204,7 +204,7 @@ matriz_ataque = confusion_matrix(
     labels=clases_ataque,
 )
 
-fig, ax = plt.subplots(figsize=(6, 5))
+fig, ax = plt.subplots(figsize=(8, 7))
 sns.heatmap(
     matriz_ataque,
     annot=True,
@@ -214,13 +214,14 @@ sns.heatmap(
     ax=ax,
     xticklabels=etiquetas_ataque,
     yticklabels=etiquetas_ataque,
-    annot_kws={"size": 14, "weight": "bold"},
+    annot_kws={"size": 20, "weight": "bold"},
 )
-ax.set_xlabel("Predicted class")
-ax.set_ylabel("Actual class")
+ax.set_xlabel("Predicted class", fontsize=20, fontweight="bold")
+ax.set_ylabel("Actual class", fontsize=20, fontweight="bold")
+ax.tick_params(axis="both", labelsize=18)
 fig.tight_layout()
 fig.savefig(
-    directorio_salida / "matriz_confusion_ataque.pdf",
+    directorio_salida / "matriz_confusion_ataque.jpg",
     dpi=300,
     bbox_inches="tight",
 )
@@ -234,7 +235,7 @@ matriz_algoritmo = confusion_matrix(
 )
 
 fig, ax = plt.subplots(
-    figsize=(max(7, len(clases_algoritmo) * 1.2), 6)
+    figsize=(max(10, len(clases_algoritmo) * 2), 8)
 )
 sns.heatmap(
     matriz_algoritmo,
@@ -245,14 +246,15 @@ sns.heatmap(
     ax=ax,
     xticklabels=clases_algoritmo,
     yticklabels=clases_algoritmo,
-    annot_kws={"size": 12, "weight": "bold"},
+    annot_kws={"size": 18, "weight": "bold"},
 )
-ax.set_xlabel("Predicted algorithm")
-ax.set_ylabel("Actual algorithm")
-plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+ax.set_xlabel("Predicted algorithm", fontsize=20, fontweight="bold")
+ax.set_ylabel("Actual algorithm", fontsize=20, fontweight="bold")
+ax.tick_params(axis="both", labelsize=18)
+plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 fig.tight_layout()
 fig.savefig(
-    directorio_salida / "matriz_confusion_algoritmo.pdf",
+    directorio_salida / "matriz_confusion_algoritmo.jpg",
     dpi=300,
     bbox_inches="tight",
 )
@@ -265,7 +267,7 @@ feature_names = [
     "Sentinel v3",
     "Sentinel v4",
 ]
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 
 for ax, model, model_name in (
     (axes[0], clf_ataque, "Attack detector"),
@@ -278,21 +280,22 @@ for ax, model, model_name in (
         importances[indices],
         color=sns.color_palette("magma", n_colors=len(feature_names)),
     )
-    ax.set_xlabel(f"{model_name} feature importance")
-    ax.set_ylabel("Feature")
+    ax.set_xlabel(f"{model_name} feature importance", fontsize=18, fontweight="bold")
+    ax.set_ylabel("Feature", fontsize=18, fontweight="bold")
+    ax.tick_params(axis="both", labelsize=16)
     ax.grid(axis="x", linestyle="--", alpha=0.5)
 
 fig.tight_layout()
 fig.savefig(
-    directorio_salida / "importancia_caracteristicas.pdf",
+    directorio_salida / "importancia_caracteristicas.jpg",
     dpi=300,
     bbox_inches="tight",
 )
 plt.close(fig)
 print(
     "Figures saved to "
-    f"{directorio_salida}: matriz_confusion_ataque.pdf, "
-    "matriz_confusion_algoritmo.pdf, importancia_caracteristicas.pdf"
+    f"{directorio_salida}: matriz_confusion_ataque.jpg, "
+    "matriz_confusion_algoritmo.jpg, importancia_caracteristicas.jpg"
 )
 
 # ==========================================
